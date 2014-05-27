@@ -76,6 +76,7 @@ int main(int UNUSED(argc), char *argv[]) {
 
 			printf("sending response to client...\n");
 			send(newSd, resp, len, 0);
+			printf("sent done.\n");
 			/* init line */
 			memset(line, 0x0, MAX_MSG);
 		} /* while(read_line) */
@@ -93,10 +94,13 @@ int server_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
 
 	switch (func)	{
 	case MIFI_CLI_LOGIN:
-		datalen = 2;
-		resp->datalen = 0x0200; // little-endian: 0x0002
+		datalen = 200;
+		resp->datalen = __builtin_bswap16(datalen); //0x0200; // little-endian: 0x0002
+		memset(resp->data, 0xcc, datalen);
 		resp->data[0] = 'O';
 		resp->data[1] = 'K';
+		resp->data[198] = 'K';
+		resp->data[199] = 'O';
 		break;
 
 	default:

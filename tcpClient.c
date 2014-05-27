@@ -16,70 +16,92 @@
 
 #include "tcpComm.h"
 #include "tcpClient.h"
+#include "linenoise.h"
 
-/*
-#ifdef LOCAL_TEST
-#define SERVER_ADDR "127.0.0.1"
-#else
-#define SERVER_ADDR "218.80.254.79"
-#endif
+int main(int UNUSED(argc), char *argv[]) 
+{
+	int sd;
+	char *line;
 
-int build_packet(PMIFI_PACKET packet, int func);
-int build_response(PMIFI_PACKET packet, PMIFI_PACKET resp);
-int get_device_id(u8 *pDevId);
-int get_device_imsi(u8 *pImsi);
-int get_device_version(u8 *pVer);
-u32 get_packet_sn(void);
-*/
-
-int main(int UNUSED(argc), char *argv[]) {
-
-	int sd, rc;
-	struct sockaddr_in localAddr, servAddr;
-	struct hostent *h;
-	u8 sum, buff[256];
-	int len;
-
-	h = gethostbyname(SERVER_ADDR);
-	if (h == NULL) {
-		printf("%s: unknown host '%s'\n", argv[0], SERVER_ADDR);
-		return (1);
-	}
-
-	servAddr.sin_family = h->h_addrtype;
-	memcpy((char *) &servAddr.sin_addr.s_addr, h->h_addr_list[0], h->h_length);
-	servAddr.sin_port = htons(SERVER_PORT);
-
-	/* create socket */
-	sd = socket(AF_INET, SOCK_STREAM, 0);
+	sd = establish_connection(SERVER_ADDR, SERVER_PORT);
 	if (sd < 0) {
-		perror("cannot open socket ");
-		return (1);
+		return ERROR;
 	}
 
-	/* bind any port number */
-	localAddr.sin_family = AF_INET;
-	localAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	localAddr.sin_port = htons(0);
+    linenoiseHistoryLoad("history.txt"); /* Load the history at startup */
+    while((line = linenoise("mifi> ")) != NULL) {
+        /* Do something with the string. */
+        if (line[0] != '\0' && line[0] != '/') {
+            //printf("echo: '%s'\n", line);
+            cmd_handle(sd, line);
+            linenoiseHistoryAdd(line); /* Add to the history. */
+            linenoiseHistorySave("history.txt"); /* Save the history on disk. */
+        } else if (!strncmp(line,"/q",2)) {
+        	free(line);
+        	break;
+        } else if (!strncmp(line,"/historylen",11)) {
+            /* The "/historylen" command will change the history len. */
+            int len = atoi(line+11);
+            linenoiseHistorySetMaxLen(len);
+        } else if (line[0] == '/') {
+            printf("Unreconized command: %s\n", line);
+        }
+        free(line);
+    }
 
-	rc = bind(sd, (struct sockaddr *) &localAddr, sizeof(localAddr));
-	if (rc < 0) {
-		printf("%s: cannot bind port TCP %u\n", argv[0], SERVER_PORT);
-		perror("error ");
-		return (1);
+	close(sd);
+	return 0;
+}
+
+int get_cmdid(char *cmd)
+{
+	int i;
+    struct {
+        int id;
+        char *cmd;
+    } cmds[] = {
+        {MIFI_CLI_LOGIN,   "login"},
+        {MIFI_CLI_LOGOUT,  "logout"},
+        {MIFI_RPT_PARAMS,  "params"},
+        {MIFI_RPT_STATES,  "states"},
+        {MIFI_CLI_ALIVE,   "alive"},
+        {MIFI_USR_OFFLINE, "offline"},
+        {MIFI_USR_CHECK,   "check"},
+        {MIFI_USR_AUTH,    "auth"},
+        {MIFI_ADV_REQUEST, "adv"},
+        {MIFI_USR_GRANT,   "grant"},
+    };
+
+    for (i = 0; i < sizeof(cmds) / sizeof(cmds[0]); i++)
+    {
+    	if (strcmp(cmds[i].cmd, cmd) == 0)
+    		return cmds[i].id;
+    }
+    return ERROR;
+}
+
+int cmd_handle(int sd, char *cmd)
+{
+	int rc, len;
+	u8 sum, buff[512];
+	int func;
+
+	func = get_cmdid(cmd);
+	if (func < 0) {
+		printf("unknown command: %s\n", cmd);
+		return ERROR;
 	}
 
-	printf("connecting to server: %s\n", SERVER_ADDR);
-	/* connect to server */
-	rc = connect(sd, (struct sockaddr *) &servAddr, sizeof(servAddr));
-	if (rc < 0) {
-		perror("cannot connect ");
-		return (1);
+	switch (func) {
+	case MIFI_CLI_LOGIN:
+		memset(buff, 0, sizeof(buff));
+		len = build_packet((PMIFI_PACKET)buff, MIFI_CLI_LOGIN);
+		break;
+
+	default:
+		printf("func isn't impletement: %d\n", func);
 	}
 
-	memset(buff, 0, sizeof(buff));
-	len = build_packet((PMIFI_PACKET)buff, MIFI_CLI_LOGIN);
-	//printf("+++ built packet len is %d\n", len);
 	printf("send request packet:\n");
 	dump_packet((PMIFI_PACKET)buff);
 	rc = send(sd, &buff[0], len, 0);
@@ -87,18 +109,19 @@ int main(int UNUSED(argc), char *argv[]) {
 	if (rc < 0) {
 		perror("cannot send data ");
 		close(sd);
-		return (1);
+		return ERROR;
 	}
 
 	printf("waiting for server response\n");
-	read_packet(sd, (PMIFI_PACKET)buff);
-	len = get_packet_len((PMIFI_PACKET)buff);
-	sum = get_checksum(buff, len - 1);
-	//printf("len = %d, recv sum = 0x%02x, calc sum = 0x%02x\n", len, buff[len - 1], sum);
-	dump_packet((PMIFI_PACKET) buff);
-	if (sum != buff[len - 1]) printf("+++++ warning: response checksum is wrong\n");
-
-	close(sd);
+	rc = read_packet(sd, (PMIFI_PACKET)buff);
+	if (rc != ERROR) {
+		len = get_packet_len((PMIFI_PACKET)buff);
+		sum = get_checksum(buff, len - 1);
+		//printf("len = %d, recv sum = 0x%02x, calc sum = 0x%02x\n", len, buff[len - 1], sum);
+		dump_packet((PMIFI_PACKET) buff);
+		if (sum != buff[len - 1]) printf("+++++ warning: response checksum is wrong\n");
+	}
+	printf("handle command \"%s\" end\n", cmd);
 	return 0;
 }
 
@@ -167,7 +190,7 @@ int get_device_id(u8 *pDevId)
 
 int get_device_imsi(u8 *pImsi)
 {
-	const char *myimsi = "0123456789abcdef";
+	const char *myimsi = "0123456789abcdef"; // 有越界，只需要15字节
 	memcpy(pImsi, myimsi, strlen(myimsi));
 	return 0;
 }
@@ -183,4 +206,49 @@ u32 get_packet_sn(void)
 {
 	static u32 sn = 0;
 	return ++sn;
+}
+
+int establish_connection(char *server, int port)
+{
+	int sd, rc;
+	struct sockaddr_in localAddr, servAddr;
+	struct hostent *h;
+
+	h = gethostbyname(server);
+	if (h == NULL) {
+		printf("unknown host '%s'\n", server);
+		return ERROR;
+	}
+
+	servAddr.sin_family = h->h_addrtype;
+	memcpy((char *) &servAddr.sin_addr.s_addr, h->h_addr_list[0], h->h_length);
+	servAddr.sin_port = htons(port);
+
+	/* create socket */
+	sd = socket(AF_INET, SOCK_STREAM, 0);
+	if (sd < 0) {
+		perror("cannot open socket ");
+		return ERROR;
+	}
+
+	/* bind any port number */
+	localAddr.sin_family = AF_INET;
+	localAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	localAddr.sin_port = htons(0);
+
+	rc = bind(sd, (struct sockaddr *) &localAddr, sizeof(localAddr));
+	if (rc < 0) {
+		printf("cannot bind port TCP %u\n", port);
+		perror("error ");
+		return ERROR;
+	}
+
+	printf("connecting to server: %s\r\n", server);
+	/* connect to server */
+	rc = connect(sd, (struct sockaddr *) &servAddr, sizeof(servAddr));
+	if (rc < 0) {
+		perror("cannot connect ");
+		return ERROR;
+	}
+	return sd;
 }

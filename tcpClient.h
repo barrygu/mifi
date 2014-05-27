@@ -7,10 +7,15 @@
 #define SERVER_ADDR "127.0.0.1"
 #else
 #define SERVER_ADDR "218.80.254.79"
+//#define SERVER_ADDR "192.168.10.109"
 #endif
 
+int establish_connection(char *server, int port);
 int build_packet(PMIFI_PACKET packet, int func);
 int build_response(PMIFI_PACKET packet, PMIFI_PACKET resp);
+
+int get_cmdid(char *cmd);
+int cmd_handle(int sd, char *cmd);
 
 int get_device_id(u8 *pDevId);
 int get_device_imsi(u8 *pImsi);

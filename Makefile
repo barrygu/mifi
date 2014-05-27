@@ -1,6 +1,6 @@
 LOC_TEST :=  true
 
-CLI-SRCS := tcpClient.c tcpClient.h
+CLI-SRCS := tcpClient.c tcpClient.h linenoise.c linenoise.h
 SVR-SRCS := tcpServer.c tcpServer.h
 COMMON-SRCS := tcpComm.c tcpComm.h
 

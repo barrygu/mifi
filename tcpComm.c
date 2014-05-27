@@ -7,6 +7,7 @@
 #include <unistd.h> /* close */
 #include <string.h>
 
+//#define DEBUG
 #include "tcpComm.h"
 
 void dump_data(u8 *pdata, int datalen, int line_width) {
@@ -52,8 +53,8 @@ int get_packet_len(PMIFI_PACKET packet)
 int read_packet(int sd, PMIFI_PACKET packet) {
 	int rcv_ptr = 0;
 	static char rcv_msg[MAX_MSG];
-	int rcv_len, tmp;
-	int offset, datalen;
+	int rcv_len = 0, tmp;
+	int offset = 0, datalen = 0;
 	const int sizeof_fixlen = sizeof(MIFI_PACKET);
 
 	char *rcv_buff = (char *) packet;
@@ -81,7 +82,7 @@ int read_packet(int sd, PMIFI_PACKET packet) {
 				memcpy(rcv_buff + offset, rcv_msg, rcv_len);
 				offset += rcv_len;
 				rcv_ptr += rcv_len;
-				//printf("++++ line %d\n", __LINE__);
+				DBG_OUT("offset = %d, rcv_ptr = %d\n", offset, rcv_ptr);
 				continue;
 			} else {
 				tmp = sizeof_fixlen - offset;
@@ -92,14 +93,16 @@ int read_packet(int sd, PMIFI_PACKET packet) {
 				offset += tmp;
 				rcv_ptr += tmp; // 移动数据指针
 
-				DBG_OUT("datalen = %d, rcv_len = %d, offset = %d\n",
-						datalen, rcv_len, offset);
+				DBG_OUT("datalen = %d, rcv_ptr = %d, offset = %d\n",
+						datalen, rcv_ptr, offset);
 				if (rcv_len < datalen) {
-					//printf("++++ line %d\n", __LINE__);
-					memcpy(rcv_buff + offset, rcv_msg + rcv_ptr, rcv_len - tmp);
+					DBG_OUT("offset = %d, rcv_ptr = %d\n", offset, rcv_ptr);
+					rcv_len -= tmp;
+					memcpy(rcv_buff + offset, rcv_msg + rcv_ptr, rcv_len);
+					offset += rcv_len;
 					continue; // 将接收到的剩余全部数据读入接收缓冲
 				} else {
-					//printf("++++ line %d\n", __LINE__);
+					DBG_OUT("offset = %d, rcv_ptr = %d\n", offset, rcv_ptr);
 					memcpy(rcv_buff + offset, rcv_msg + rcv_ptr,
 							(datalen - offset));
 					return 0; // 将指定长度的数据读入接收缓冲
@@ -116,12 +119,12 @@ int read_packet(int sd, PMIFI_PACKET packet) {
 				memcpy(rcv_buff + offset, rcv_msg + rcv_ptr, tmp);
 				rcv_ptr += tmp;
 				offset += tmp;
-				//printf("++++ line %d\n", __LINE__);
+				DBG_OUT("offset = %d, rcv_ptr = %d\n", offset, rcv_ptr);
 				continue; // 将接收到的剩余全部数据读入接收缓冲
 			} else {
 				memcpy(rcv_buff + offset, rcv_msg + rcv_ptr,
 						(datalen - offset));
-				//printf("++++ line %d\n", __LINE__);
+				DBG_OUT("\n");
 				return 0; // 将指定长度的数据读入接收缓冲
 			}
 		}
