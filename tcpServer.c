@@ -94,6 +94,7 @@ int server_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
 
 	switch (func)	{
 	case MIFI_CLI_LOGIN:
+	case MIFI_CLI_ALIVE:
 		datalen = 200;
 		resp->datalen = __builtin_bswap16(datalen); //0x0200; // little-endian: 0x0002
 		memset(resp->data, 0xcc, datalen);

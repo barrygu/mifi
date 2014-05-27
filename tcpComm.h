@@ -16,7 +16,8 @@ typedef unsigned char u8;
 typedef unsigned short u16;
 typedef unsigned int u32;
 
-typedef struct __attribute__((packed, aligned(1))) mifi_packet {
+#define __PACK__ __attribute__((packed, aligned(1)))
+typedef struct __PACK__ mifi_packet {
 	u16 func;
 	u32 sn_packet;
 	u8 id_device[11];
@@ -25,6 +26,17 @@ typedef struct __attribute__((packed, aligned(1))) mifi_packet {
 	u16 datalen;
 	u8 data[0];
 } MIFI_PACKET, *PMIFI_PACKET;
+
+typedef struct __PACK__ mifi_alive {
+  u32 worktime; // seconds
+  u8  ssi;
+  u8  battery;
+  u8  login_users;
+  u8  auth_users;
+  u8  net_type;  // 3G or lan
+  u32 cellid;
+  u32 used_bytes; // Mega bytes
+}MIFI_ALIVE;
 
 #ifdef DEBUG
 	#define DBG_OUT(x...) do { printf("[%s,%s(),%d]: ", __FILE__, __FUNCTION__, __LINE__); printf(x); } while(0)

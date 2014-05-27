@@ -94,12 +94,14 @@ int cmd_handle(int sd, char *cmd)
 
 	switch (func) {
 	case MIFI_CLI_LOGIN:
+	case MIFI_CLI_ALIVE:
 		memset(buff, 0, sizeof(buff));
-		len = build_packet((PMIFI_PACKET)buff, MIFI_CLI_LOGIN);
+		len = build_packet((PMIFI_PACKET)buff, func);
 		break;
 
 	default:
 		printf("func isn't impletement: %d\n", func);
+		return ERROR;
 	}
 
 	printf("send request packet:\n");
@@ -136,6 +138,7 @@ int build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
 
 	switch (func)	{
 	case MIFI_CLI_LOGIN:
+	case MIFI_CLI_ALIVE:
 		datalen = 2;
 		resp->datalen = 0x0200; // little-endian: 0x0002
 		resp->data[0] = 'O';
@@ -171,6 +174,22 @@ int build_packet(PMIFI_PACKET packet, int func)
 		packet->datalen = 0x0400;//__builtin_bswap16(datalen);
 		get_device_version(packet->data);
 		break;
+
+  case MIFI_CLI_ALIVE:
+  {
+    MIFI_ALIVE alive;
+    datalen = sizeof(MIFI_ALIVE);
+    packet->datalen = __builtin_bswap16(datalen);
+    alive.worktime = __builtin_bswap32(3600);
+    alive.ssi = 78;
+    alive.battery = 80;
+    alive.login_users = 0;
+    alive.auth_users = 0;
+    alive.cellid = __builtin_bswap32(0x11223344);
+    alive.used_bytes = __builtin_bswap32(1234);
+    memcpy(packet->data, &alive, datalen);
+    break;
+  }
 
 	default:
 		return -1;
