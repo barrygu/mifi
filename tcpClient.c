@@ -45,6 +45,8 @@ int main(int UNUSED(argc), char *argv[])
             linenoiseHistorySetMaxLen(len);
         } else if (line[0] == '/') {
             printf("Unreconized command: %s\n", line);
+        } else {
+        	printf("\n");
         }
         free(line);
     }
@@ -95,6 +97,7 @@ int cmd_handle(int sd, char *cmd)
 	switch (func) {
 	case MIFI_CLI_LOGIN:
 	case MIFI_CLI_ALIVE:
+	case MIFI_CLI_LOGOUT:
 		memset(buff, 0, sizeof(buff));
 		len = build_packet((PMIFI_PACKET)buff, func);
 		break;
@@ -175,21 +178,28 @@ int build_packet(PMIFI_PACKET packet, int func)
 		get_device_version(packet->data);
 		break;
 
-  case MIFI_CLI_ALIVE:
-  {
-    MIFI_ALIVE alive;
-    datalen = sizeof(MIFI_ALIVE);
-    packet->datalen = __builtin_bswap16(datalen);
-    alive.worktime = __builtin_bswap32(3600);
-    alive.ssi = 78;
-    alive.battery = 80;
-    alive.login_users = 0;
-    alive.auth_users = 0;
-    alive.cellid = __builtin_bswap32(0x11223344);
-    alive.used_bytes = __builtin_bswap32(1234);
-    memcpy(packet->data, &alive, datalen);
-    break;
-  }
+	case MIFI_CLI_ALIVE:
+	{
+		MIFI_ALIVE alive;
+		datalen = sizeof(MIFI_ALIVE);
+		packet->datalen = __builtin_bswap16(datalen);
+		alive.worktime = __builtin_bswap32(3600);
+		alive.rssi = 78;
+		alive.battery = 80;
+		alive.login_users = 0;
+		alive.auth_users = 0;
+		alive.cellid = __builtin_bswap32(0x11223344);
+		alive.used_bytes = __builtin_bswap32(1234);
+		memcpy(packet->data, &alive, datalen);
+		break;
+	}
+
+	case MIFI_CLI_LOGOUT:
+	{
+		datalen = 0;
+		packet->datalen = 0;
+		break;
+	}
 
 	default:
 		return -1;

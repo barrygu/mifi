@@ -11,7 +11,7 @@
 #include <unistd.h> /* close */
 #include <string.h>
 
-#define DEBUG
+//#define DEBUG
 #include "tcpComm.h"
 #include "tcpServer.h"
 

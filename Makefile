@@ -1,4 +1,4 @@
-LOC_TEST :=  true
+#LOC_TEST :=  true
 
 CLI-SRCS := tcpClient.c tcpClient.h linenoise.c linenoise.h
 SVR-SRCS := tcpServer.c tcpServer.h
@@ -21,6 +21,7 @@ ifeq ($(strip $(LOC_TEST)),true)
 CFLAGS += -DLOCAL_TEST
 endif
 
+CFLAGS += -DDEBUG
 CFLAGS += -Wall -g
 LDFLAGS = -Wall -g
 

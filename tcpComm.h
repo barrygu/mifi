@@ -16,8 +16,8 @@ typedef unsigned char u8;
 typedef unsigned short u16;
 typedef unsigned int u32;
 
-#define __PACK__ __attribute__((packed, aligned(1)))
-typedef struct __PACK__ mifi_packet {
+#define PACK_ALIGN(x) __attribute__((packed, aligned(x)))
+typedef struct PACK_ALIGN(1) mifi_packet {
 	u16 func;
 	u32 sn_packet;
 	u8 id_device[11];
@@ -27,9 +27,9 @@ typedef struct __PACK__ mifi_packet {
 	u8 data[0];
 } MIFI_PACKET, *PMIFI_PACKET;
 
-typedef struct __PACK__ mifi_alive {
+typedef struct PACK_ALIGN(1) mifi_alive {
   u32 worktime; // seconds
-  u8  ssi;
+  u8  rssi;
   u8  battery;
   u8  login_users;
   u8  auth_users;
