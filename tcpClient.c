@@ -212,14 +212,14 @@ int build_packet(PMIFI_PACKET packet, int func)
 
 int get_device_id(u8 *pDevId)
 {
-	const char *myid = "18912345678";
+	const char *myid = "19912345678";
 	memcpy(pDevId, myid, strlen(myid));
 	return 0;
 }
 
 int get_device_imsi(u8 *pImsi)
 {
-	const char *myimsi = "0123456789abcdef"; // 有越界，只需要15字节
+	const char *myimsi = "1234567891abcde";
 	memcpy(pImsi, myimsi, strlen(myimsi));
 	return 0;
 }
