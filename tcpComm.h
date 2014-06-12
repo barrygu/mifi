@@ -44,6 +44,8 @@ typedef struct PACK_ALIGN(1) mifi_alive {
 	#define DBG_OUT(...) do {} while(0)
 #endif
 
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+
 #define MAX_MSG 100
 #define SUCCESS 0
 #define ERROR   -1
@@ -53,6 +55,9 @@ void dump_packet(PMIFI_PACKET packet);
 int  read_packet(int sd, PMIFI_PACKET packet);
 u8   get_checksum(u8 *pdata, int datalen);
 int  get_packet_len(PMIFI_PACKET packet);
+int  make_argv(char *s, int argvsz, char *argv[]);
+
+#define MIFI_CMD_HELP     0x8888
 
 // use big-endian to define function id
 #define MIFI_CLI_LOGIN    0x0100

@@ -55,26 +55,28 @@ int main(int UNUSED(argc), char *argv[])
 	return 0;
 }
 
+static struct {
+    int id;
+    char *cmd;
+} cmds[] = {
+    {MIFI_CLI_LOGIN,   "login"},
+    {MIFI_CLI_LOGOUT,  "logout"},
+//    {MIFI_RPT_PARAMS,  "params"},
+//    {MIFI_RPT_STATES,  "states"},
+    {MIFI_CLI_ALIVE,   "alive"},
+//    {MIFI_USR_OFFLINE, "offline"},
+    {MIFI_USR_CHECK,   "check"},
+//    {MIFI_USR_AUTH,    "auth"},
+//    {MIFI_ADV_REQUEST, "adv"},
+//    {MIFI_USR_GRANT,   "grant"},
+    {MIFI_CMD_HELP,    "help"},
+};
+
 int get_cmdid(char *cmd)
 {
 	int i;
-    struct {
-        int id;
-        char *cmd;
-    } cmds[] = {
-        {MIFI_CLI_LOGIN,   "login"},
-        {MIFI_CLI_LOGOUT,  "logout"},
-        {MIFI_RPT_PARAMS,  "params"},
-        {MIFI_RPT_STATES,  "states"},
-        {MIFI_CLI_ALIVE,   "alive"},
-        {MIFI_USR_OFFLINE, "offline"},
-        {MIFI_USR_CHECK,   "check"},
-        {MIFI_USR_AUTH,    "auth"},
-        {MIFI_ADV_REQUEST, "adv"},
-        {MIFI_USR_GRANT,   "grant"},
-    };
 
-    for (i = 0; i < sizeof(cmds) / sizeof(cmds[0]); i++)
+    for (i = 0; i < ARRAY_SIZE(cmds); i++)
     {
     	if (strcmp(cmds[i].cmd, cmd) == 0)
     		return cmds[i].id;
@@ -84,13 +86,19 @@ int get_cmdid(char *cmd)
 
 int cmd_handle(int sd, char *cmd)
 {
-	int rc, len;
+	int i, rc, len;
 	u8 sum, buff[512];
 	int func;
+    int argc;
+    char *argv[10];
 
-	func = get_cmdid(cmd);
+    argc = make_argv(cmd, ARRAY_SIZE(argv), argv);
+    if (argc <= 0)
+        return ERROR;
+        
+	func = get_cmdid(argv[0]);
 	if (func < 0) {
-		printf("unknown command: %s\n", cmd);
+		printf("unknown command: %s\n", argv[0]);
 		return ERROR;
 	}
 
@@ -98,9 +106,17 @@ int cmd_handle(int sd, char *cmd)
 	case MIFI_CLI_LOGIN:
 	case MIFI_CLI_ALIVE:
 	case MIFI_CLI_LOGOUT:
+    case MIFI_USR_CHECK:
 		memset(buff, 0, sizeof(buff));
 		len = build_packet((PMIFI_PACKET)buff, func);
 		break;
+
+    case MIFI_CMD_HELP:
+        for (i = 0; i < ARRAY_SIZE(cmds); i++)
+        {
+            printf("  %s\n", cmds[i].cmd);
+        }
+        return 0;
 
 	default:
 		printf("func isn't impletement: %d\n", func);
@@ -195,11 +211,14 @@ int build_packet(PMIFI_PACKET packet, int func)
 	}
 
 	case MIFI_CLI_LOGOUT:
-	{
 		datalen = 0;
-		packet->datalen = 0;
+		packet->datalen = __builtin_bswap16(datalen);
 		break;
-	}
+
+    case MIFI_USR_CHECK:
+		datalen = get_client_mac(packet->data);
+		packet->datalen = __builtin_bswap16(datalen);
+        break;
 
 	default:
 		return -1;
@@ -208,6 +227,15 @@ int build_packet(PMIFI_PACKET packet, int func)
 	sum = get_checksum((u8 *)packet, packetlen);
 	*(((u8 *)packet) + packetlen) = sum;
 	return packetlen + 1;
+}
+
+int get_client_mac(u8 *pMac)
+{
+    u8  mac[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+    int len = sizeof(mac);
+    
+    memcpy(pMac, mac, len);
+    return len;
 }
 
 int get_device_id(u8 *pDevId)

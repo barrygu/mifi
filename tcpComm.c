@@ -131,3 +131,33 @@ int read_packet(int sd, PMIFI_PACKET packet) {
 	} // while
 	return 0;
 }
+
+int make_argv(char *s, int argvsz, char *argv[])
+{
+    int argc = 0;
+
+    /* split into argv */
+    while (argc < argvsz - 1) {
+
+        /* skip any white space */
+        while ((*s == ' ') || (*s == '\t'))
+            ++s;
+
+        if (*s == '\0') /* end of s, no more args   */
+            break;
+
+        argv[argc++] = s;   /* begin of argument string */
+
+        /* find end of string */
+        while (*s && (*s != ' ') && (*s != '\t'))
+            ++s;
+
+        if (*s == '\0')     /* end of s, no more args   */
+            break;
+
+        *s++ = '\0';        /* terminate current arg     */
+    }
+    argv[argc] = NULL;
+
+    return argc;
+}
