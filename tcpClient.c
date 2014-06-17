@@ -69,6 +69,7 @@ static struct {
 //    {MIFI_USR_AUTH,    "auth"},
 //    {MIFI_ADV_REQUEST, "adv"},
 //    {MIFI_USR_GRANT,   "grant"},
+    {MIFI_CMD_READ,    "read"},
     {MIFI_CMD_HELP,    "help"},
 };
 
@@ -118,21 +119,25 @@ int cmd_handle(int sd, char *cmd)
         }
         return 0;
 
+    case MIFI_CMD_READ:
+        break;
+
 	default:
 		printf("func isn't impletement: %d\n", func);
 		return ERROR;
 	}
 
-	printf("send request packet:\n");
-	dump_packet((PMIFI_PACKET)buff);
-	rc = send(sd, &buff[0], len, 0);
+    if (func != MIFI_CMD_READ) {
+        printf("send request packet:\n");
+        dump_packet((PMIFI_PACKET)buff);
+        rc = send(sd, &buff[0], len, 0);
 
-	if (rc < 0) {
-		perror("cannot send data ");
-		close(sd);
-		return ERROR;
-	}
-
+        if (rc < 0) {
+            perror("cannot send data ");
+            close(sd);
+            return ERROR;
+        }
+    }
 	printf("waiting for server response\n");
 	rc = read_packet(sd, (PMIFI_PACKET)buff);
 	if (rc != ERROR) {
@@ -142,7 +147,7 @@ int cmd_handle(int sd, char *cmd)
 		dump_packet((PMIFI_PACKET) buff);
 		if (sum != buff[len - 1]) printf("+++++ warning: response checksum is wrong\n");
 	}
-	printf("handle command \"%s\" end\n", cmd);
+	printf("handle command \"%s\" end\n", argv[0]);
 	return 0;
 }
 
@@ -193,7 +198,7 @@ int build_packet(PMIFI_PACKET packet, int func)
 		packet->datalen = 0x0400;//__builtin_bswap16(datalen);
 		get_device_version(packet->data);
 		break;
-
+        
 	case MIFI_CLI_ALIVE:
 	{
 		MIFI_ALIVE alive;
@@ -240,14 +245,18 @@ int get_client_mac(u8 *pMac)
 
 int get_device_id(u8 *pDevId)
 {
-	const char *myid = "19912345678";
+//	const char *myid = "19912345678";
+	const char *myid = "18912345678";
+//	const char *myid = "18812345678";
 	memcpy(pDevId, myid, strlen(myid));
 	return 0;
 }
 
 int get_device_imsi(u8 *pImsi)
 {
-	const char *myimsi = "1234567891abcde";
+//	const char *myimsi = "1234567891abcde";
+	const char *myimsi = "0123456789abcde";
+//	const char *myimsi = "1234567890abcde";
 	memcpy(pImsi, myimsi, strlen(myimsi));
 	return 0;
 }

@@ -97,17 +97,26 @@ int server_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
 	switch (func)	{
 	case MIFI_CLI_LOGIN:
 	case MIFI_CLI_ALIVE:
-	case MIFI_USR_CHECK:
-		datalen = 200;
+	//case MIFI_USR_CHECK:
+		datalen = 100;
 		resp->datalen = __builtin_bswap16(datalen); //0x0200; // little-endian: 0x0002
 		memset(resp->data, 0xcc, datalen);
 		resp->data[0] = (u8)(func);
 		resp->data[1] = (u8)(func >> 8);
 		resp->data[2] = 'O';
 		resp->data[3] = 'K';
-		resp->data[198] = 'K';
-		resp->data[199] = 'O';
+		resp->data[98] = 'K';
+		resp->data[99] = 'O';
 		break;
+
+	case MIFI_USR_CHECK:
+        {
+            char *purl = "http://news.baidu.com";
+            datalen = strlen(purl);
+            resp->datalen = __builtin_bswap16(datalen); //0x0200; // little-endian: 0x0002
+            strcpy(resp->data, purl);
+        }
+        break;
 
 	default:
 		return -1;

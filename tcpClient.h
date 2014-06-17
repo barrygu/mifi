@@ -6,8 +6,9 @@
 #ifdef LOCAL_TEST
 #define SERVER_ADDR "127.0.0.1"
 #else
-#define SERVER_ADDR "218.80.254.79"
+//#define SERVER_ADDR "218.80.254.79"
 //#define SERVER_ADDR "192.168.10.109"
+#define SERVER_ADDR "116.228.171.21"
 #endif
 
 int establish_connection(char *server, int port);

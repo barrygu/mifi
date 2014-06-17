@@ -1,7 +1,8 @@
 #ifndef __MIFI_TCP_H__
 #define __MIFI_TCP_H__
 
-#define SERVER_PORT 6588
+//#define SERVER_PORT 6588
+#define SERVER_PORT 8588
 
 #ifdef UNUSED
 #elif defined(__GNUC__)
@@ -58,6 +59,8 @@ int  get_packet_len(PMIFI_PACKET packet);
 int  make_argv(char *s, int argvsz, char *argv[]);
 
 #define MIFI_CMD_HELP     0x8888
+#define MIFI_CMD_READ     0x8889
+#define MIFI_CMD_SERV     0x8899
 
 // use big-endian to define function id
 #define MIFI_CLI_LOGIN    0x0100

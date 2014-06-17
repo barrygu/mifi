@@ -1,4 +1,4 @@
-LOC_TEST :=  true
+#LOC_TEST :=  true
 
 CLI-SRCS := tcpClient.c tcpClient.h linenoise.c linenoise.h
 SVR-SRCS := tcpServer.c tcpServer.h
