@@ -18,6 +18,10 @@
 #include "tcpClient.h"
 #include "linenoise.h"
 
+//#define USED_DEV  199
+#define USED_DEV  189
+//#define USED_DEV  188
+
 int main(int UNUSED(argc), char *argv[]) 
 {
 	int sd;
@@ -245,18 +249,26 @@ int get_client_mac(u8 *pMac)
 
 int get_device_id(u8 *pDevId)
 {
-//	const char *myid = "19912345678";
+#if USED_DEV == 199
+	const char *myid = "19912345678";
+#elif USED_DEV == 189
 	const char *myid = "18912345678";
-//	const char *myid = "18812345678";
+#elif USED_DEV == 188
+	const char *myid = "18812345678";
+#endif
 	memcpy(pDevId, myid, strlen(myid));
 	return 0;
 }
 
 int get_device_imsi(u8 *pImsi)
 {
-//	const char *myimsi = "1234567891abcde";
+#if USED_DEV == 199
+	const char *myimsi = "1234567891abcde";
+#elif USED_DEV == 189
 	const char *myimsi = "0123456789abcde";
-//	const char *myimsi = "1234567890abcde";
+#elif USED_DEV == 188
+	const char *myimsi = "1234567890abcde";
+#endif
 	memcpy(pImsi, myimsi, strlen(myimsi));
 	return 0;
 }
