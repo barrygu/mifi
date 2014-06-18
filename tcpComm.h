@@ -57,6 +57,8 @@ int  read_packet(int sd, PMIFI_PACKET packet);
 u8   get_checksum(u8 *pdata, int datalen);
 int  get_packet_len(PMIFI_PACKET packet);
 int  make_argv(char *s, int argvsz, char *argv[]);
+u32  get_packet_sn(void);
+
 
 #define MIFI_CMD_HELP     0x8888
 #define MIFI_CMD_READ     0x8889

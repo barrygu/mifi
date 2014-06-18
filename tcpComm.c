@@ -161,3 +161,9 @@ int make_argv(char *s, int argvsz, char *argv[])
 
     return argc;
 }
+
+u32 get_packet_sn(void)
+{
+	static u32 sn = 0;
+	return ++sn;
+}

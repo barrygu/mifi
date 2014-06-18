@@ -12,25 +12,126 @@
 #include <string.h>
 #include <pthread.h>
 #include <stdlib.h>
+#include <semaphore.h>
 
 //#define DEBUG
 #include "tcpComm.h"
 #include "tcpServer.h"
+#include "queue.h"
+#include "linenoise.h"
 
 //#define END_LINE 0x0
+
+Queue que_msg;
+pthread_mutex_t mutex_msg;
+sem_t sem_msg;
 
 struct receive_param {
 	int sd;
 };
 
-void* control_thread(void *arg)
+struct msg_packet {
+    int sd;
+    int len;
+    u8  data[0];
+};
+
+struct dev_map{
+    int sd;
+    int valid;
+    char devid[12];
+}dev_map[10];
+
+void* send_thread(void *arg)
 {
 //	struct receive_param *rpar = (struct receive_param *)arg;
 //	char line[MAX_MSG];
+    struct msg_packet *msg;
 
 	while(1) {
-		sleep(30);
+		sem_wait(&sem_msg);
+        pthread_mutex_lock(&mutex_msg);
+        msg = (struct msg_packet *)FrontAndDequeue(que_msg);
+        pthread_mutex_unlock(&mutex_msg);
+        DBG_OUT("sending data to client...\n");
+        send(msg->sd, msg->data, msg->len, 0);
+        DBG_OUT("sent done\n");
+        free((void *)msg);
 	}
+}
+
+struct listen_param{
+	int port;
+	void* (*receive_thread)(void *arg);
+};
+
+void* listen_thread(void *arg);
+void* receive_thread(void *arg);
+int cmd_handle(int sd, char *cmd);
+int handle_packet(int sd, PMIFI_PACKET packet);
+int handle_packet_post(int sd, PMIFI_PACKET packet);
+
+int main(int UNUSED(argc), char *argv[]) 
+{
+//	int i;
+    const int num_threads = 2;
+	pthread_t tid[num_threads];
+//	void *status;
+	struct listen_param lpar;
+    char *line;
+
+    que_msg = CreateQueue(100);
+    mutex_msg = PTHREAD_MUTEX_INITIALIZER;
+    sem_init(&sem_msg, 0, 0);
+
+	memset(&dev_map, 0, sizeof(dev_map));
+
+	lpar.port = SERVER_PORT;
+	lpar.receive_thread = receive_thread;
+	pthread_create(&tid[0], NULL, listen_thread, &lpar);
+	
+    pthread_create(&tid[1], NULL, send_thread, &que_msg);
+	
+    linenoiseHistoryLoad("hist-srv.txt"); /* Load the history at startup */
+    while((line = linenoise("srv> ")) != NULL) {
+        /* Do something with the string. */
+        if (line[0] != '\0' && line[0] != '/') {
+            printf("echo: '%s'\n", line);
+            cmd_handle(0, line);
+            linenoiseHistoryAdd(line); /* Add to the history. */
+            linenoiseHistorySave("hist-srv.txt"); /* Save the history on disk. */
+        } else if (!strncmp(line,"/q",2)) {
+        	free(line);
+        	break;
+        } else if (!strncmp(line,"/historylen",11)) {
+            /* The "/historylen" command will change the history len. */
+            int len = atoi(line+11);
+            linenoiseHistorySetMaxLen(len);
+        } else if (line[0] == '/') {
+            printf("Unreconized command: %s\n", line);
+        } else {
+        	printf("\n");
+        }
+        free(line);
+    }
+
+//	for (i = 0; i < num_threads; i++)
+//		pthread_join(tid[i],&status); 
+		
+	return 0;
+}
+
+void push_data(int sd, u8 *data, int len)
+{
+    struct msg_packet *msg = (struct msg_packet *)malloc(len + sizeof(struct msg_packet));
+    
+    msg->sd = sd;
+    msg->len = len;
+    memcpy(msg->data, data, len);
+    pthread_mutex_lock(&mutex_msg);
+    Enqueue((ElementType)msg, que_msg);
+    pthread_mutex_unlock(&mutex_msg);
+    sem_post(&sem_msg);
 }
 
 void* receive_thread(void *arg)
@@ -53,16 +154,19 @@ void* receive_thread(void *arg)
 		sum = get_checksum((u8*)line, len - 1);
 		DBG_OUT("len = %d, recv sum = 0x%02x, calc sum = 0x%02x\n", len, (u8)line[len - 1], sum);
 		dump_packet((PMIFI_PACKET) line);
+        if ((u8)line[len - 1] != sum)
+            DBG_OUT("*** check sum fail\n");
 
+        handle_packet(rpar->sd, (PMIFI_PACKET)line);
 		len = server_build_response((PMIFI_PACKET)line, (PMIFI_PACKET)resp);
-		printf("build response len is %d\n", len);
+		DBG_OUT("build response len is %d\n", len);
 		if (len > 0) {
 			dump_packet((PMIFI_PACKET) resp);
 
-			printf("sending response to client...\n");
-			send(rpar->sd, resp, len, 0);
-			printf("sent done.\n");
+            DBG_OUT("enqueue packet to queue\n");
+            push_data(rpar->sd, (u8*)resp, len);
 		}
+        handle_packet_post(rpar->sd, (PMIFI_PACKET)line);
 		/* init line */
 		memset(line, 0x0, MAX_MSG);
 	} /* while(read_line) */
@@ -71,10 +175,6 @@ void* receive_thread(void *arg)
 	return NULL;
 }
 
-struct listen_param{
-	int port;
-	void* (*receive_thread)(void *arg);
-};
 void* listen_thread(void *arg)
 {
 	pthread_t tid;
@@ -124,25 +224,84 @@ void* listen_thread(void *arg)
 	return NULL;
 }
 
-int main(int UNUSED(argc), char *argv[]) 
+int find_free_map(void)
 {
-	int i;
-	pthread_t tid[2];
-	void *status;
-	struct listen_param lpar[2];
-	
-	lpar[0].port = SERVER_PORT;
-	lpar[0].receive_thread = receive_thread;
-	pthread_create(&tid[0], NULL, listen_thread, &lpar[0]);
-	
-	lpar[1].port = 8899;
-	lpar[1].receive_thread = control_thread;
-	pthread_create(&tid[1], NULL, listen_thread, &lpar[1]);
-	
-	for (i = 0; i < sizeof(tid)/sizeof(tid[0]); i++)
-		pthread_join(tid[i],&status); 
-		
-	return 0;
+    int i;
+    //struct dev_map
+    for (i = 0; i < ARRAY_SIZE(dev_map); i++)
+    {
+        if (dev_map[i].valid == 0)
+            return i;
+    }
+    return -1;
+}
+
+int find_dev_map(int sd, PMIFI_PACKET packet)
+{
+    int i;
+    for (i = 0; i < ARRAY_SIZE(dev_map); i++)
+    {
+        if (dev_map[i].sd == sd) {
+            if (memcmp(dev_map[i].devid, packet->id_device, sizeof(packet->id_device)) == 0)
+                return i;
+        }
+    }
+    return -1;
+}
+
+int handle_packet(int sd, PMIFI_PACKET packet)
+{
+    int n;
+    u16 func = packet->func; // __builtin_bswap16(packet->func);
+    
+    switch (func) {
+    case MIFI_CLI_LOGIN:
+        n = find_free_map();
+        dev_map[n].sd = sd;
+        dev_map[n].valid = 1;
+        memcpy(dev_map[n].devid, packet->id_device, sizeof(packet->id_device));
+        dev_map[n].devid[sizeof(packet->id_device)] = 0;
+        break;
+    case MIFI_CLI_LOGOUT:
+        n = find_dev_map(sd, packet);
+        dev_map[n].valid = 0;
+        break;
+    }
+    return 0;
+}
+
+int handle_packet_post(int sd, PMIFI_PACKET packet)
+{
+    int /*n,*/ datalen, packetlen;
+    u16 func = packet->func; // __builtin_bswap16(packet->func);
+    PMIFI_PACKET p;
+    u8 sum;
+    
+    switch (func) {
+    case MIFI_USR_CHECK:
+        {
+            char *url = "http://share.weiyun.com/5d2734e25695756f7c7daa6b1c51ca68";
+
+            //n = find_dev_map(sd, packet);
+
+            datalen = strlen(url);
+            packetlen =  sizeof(MIFI_PACKET ) + datalen;
+            p = (PMIFI_PACKET)malloc(packetlen);
+            
+            p->func = SERV_REQ_UPGRADE;
+            p->sn_packet = __builtin_bswap32(get_packet_sn());
+            memcpy(p->id_device, packet->id_device, sizeof(p->id_device));
+            memcpy(p->imsi, packet->imsi, sizeof(p->imsi));
+            memset(p->reserved, 0, sizeof(p->reserved));
+            p->datalen = __builtin_bswap16(datalen);
+            memcpy(p->data, url, datalen);
+            sum = get_checksum((u8 *)p, packetlen);
+            *(((u8 *)p) + packetlen) = sum;
+            push_data(sd, (u8 *)p, packetlen);
+        }
+        break;
+    }
+    return 0;
 }
 
 int server_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
@@ -157,7 +316,7 @@ int server_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
 	switch (func)	{
 	case MIFI_CLI_LOGIN:
 	case MIFI_CLI_ALIVE:
-	//case MIFI_USR_CHECK:
+	case MIFI_CLI_LOGOUT:
 		datalen = 100;
 		resp->datalen = __builtin_bswap16(datalen); //0x0200; // little-endian: 0x0002
 		memset(resp->data, 0xcc, datalen);
@@ -186,4 +345,58 @@ int server_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
 	sum = get_checksum((u8 *)resp, packetlen);
 	*(((u8 *)resp) + packetlen) = sum;
 	return packetlen + 1;
+}
+
+static struct {
+    int id;
+    char *cmd;
+} cmds[] = {
+    {SERV_REQ_PARAMS,  "param"},
+    {SERV_REQ_STATES,  "status"},
+    {SERV_REQ_TRUSTS,  "trust"},
+    {SERV_REQ_KICKOUT, "kill"},
+    {SERV_REQ_KICKUSR, "kick"},
+    {SERV_REQ_REBOOT,  "reboot"},
+    {SERV_REQ_FACTORY, "factory"},
+    {SERV_SET_PARAMS,  "setpara"},
+    {SERV_SET_TRUSTS,  "setrust"},
+    {SERV_REQ_UPGRADE, "upgrade"},
+};
+
+int get_cmdid(char *cmd)
+{
+	int i;
+
+    for (i = 0; i < ARRAY_SIZE(cmds); i++)
+    {
+    	if (strcmp(cmds[i].cmd, cmd) == 0)
+    		return cmds[i].id;
+    }
+    return ERROR;
+}
+
+int cmd_handle(int UNUSED(sd), char *line)
+{
+    int argc, func;
+    char *argv[10];
+
+    argc = make_argv(line, ARRAY_SIZE(argv), argv);
+    if (argc <= 0)
+        return ERROR;
+
+	func = get_cmdid(argv[0]);
+	if (func < 0) {
+		printf("unknown command: %s\n", argv[0]);
+		return ERROR;
+	}
+
+	switch (func) {
+	case SERV_REQ_UPGRADE:
+        break;
+
+	default:
+		printf("func isn't impletement: %d\n", func);
+		return ERROR;
+    }
+    return 0;
 }

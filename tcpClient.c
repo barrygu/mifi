@@ -32,14 +32,14 @@ int main(int UNUSED(argc), char *argv[])
 		return ERROR;
 	}
 
-    linenoiseHistoryLoad("history.txt"); /* Load the history at startup */
+    linenoiseHistoryLoad("hist-cli.txt"); /* Load the history at startup */
     while((line = linenoise("mifi> ")) != NULL) {
         /* Do something with the string. */
         if (line[0] != '\0' && line[0] != '/') {
             //printf("echo: '%s'\n", line);
             cmd_handle(sd, line);
             linenoiseHistoryAdd(line); /* Add to the history. */
-            linenoiseHistorySave("history.txt"); /* Save the history on disk. */
+            linenoiseHistorySave("hist-cli.txt"); /* Save the history on disk. */
         } else if (!strncmp(line,"/q",2)) {
         	free(line);
         	break;
@@ -278,12 +278,6 @@ int get_device_version(u8 *pVer)
 	const char myver[4] = {0x00,0x01,0x00,0x01};
 	memcpy(pVer, myver, sizeof(myver));
 	return 0;
-}
-
-u32 get_packet_sn(void)
-{
-	static u32 sn = 0;
-	return ++sn;
 }
 
 int establish_connection(char *server, int port)
