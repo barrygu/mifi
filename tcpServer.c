@@ -39,7 +39,8 @@ struct msg_packet {
 struct dev_map{
     int sd;
     int valid;
-    char devid[12];
+    char devid[11+1];
+    char imsi[15+1];
 }dev_map[10];
 
 void* send_thread(void *arg)
@@ -53,7 +54,8 @@ void* send_thread(void *arg)
         pthread_mutex_lock(&mutex_msg);
         msg = (struct msg_packet *)FrontAndDequeue(que_msg);
         pthread_mutex_unlock(&mutex_msg);
-        DBG_OUT("sending data to client...\n");
+        DBG_OUT("sending %d bytes data to client...\n", msg->len);
+        dump_packet((PMIFI_PACKET) msg->data);
         send(msg->sd, msg->data, msg->len, 0);
         DBG_OUT("sent done\n");
         free((void *)msg);
@@ -96,7 +98,7 @@ int main(int UNUSED(argc), char *argv[])
     while((line = linenoise("srv> ")) != NULL) {
         /* Do something with the string. */
         if (line[0] != '\0' && line[0] != '/') {
-            printf("echo: '%s'\n", line);
+            //printf("echo: '%s'\n", line);
             cmd_handle(0, line);
             linenoiseHistoryAdd(line); /* Add to the history. */
             linenoiseHistorySave("hist-srv.txt"); /* Save the history on disk. */
@@ -128,6 +130,7 @@ void push_data(int sd, u8 *data, int len)
     msg->sd = sd;
     msg->len = len;
     memcpy(msg->data, data, len);
+    DBG_OUT("push %d bytes data to queue\n", len);
     pthread_mutex_lock(&mutex_msg);
     Enqueue((ElementType)msg, que_msg);
     pthread_mutex_unlock(&mutex_msg);
@@ -161,7 +164,7 @@ void* receive_thread(void *arg)
 		len = server_build_response((PMIFI_PACKET)line, (PMIFI_PACKET)resp);
 		DBG_OUT("build response len is %d\n", len);
 		if (len > 0) {
-			dump_packet((PMIFI_PACKET) resp);
+			//dump_packet((PMIFI_PACKET) resp);
 
             DBG_OUT("enqueue packet to queue\n");
             push_data(rpar->sd, (u8*)resp, len);
@@ -241,7 +244,7 @@ int find_dev_map(int sd, PMIFI_PACKET packet)
     int i;
     for (i = 0; i < ARRAY_SIZE(dev_map); i++)
     {
-        if (dev_map[i].sd == sd) {
+        if (dev_map[i].valid == 1 && dev_map[i].sd == sd) {
             if (memcmp(dev_map[i].devid, packet->id_device, sizeof(packet->id_device)) == 0)
                 return i;
         }
@@ -261,7 +264,10 @@ int handle_packet(int sd, PMIFI_PACKET packet)
         dev_map[n].valid = 1;
         memcpy(dev_map[n].devid, packet->id_device, sizeof(packet->id_device));
         dev_map[n].devid[sizeof(packet->id_device)] = 0;
+        memcpy(dev_map[n].imsi, packet->imsi, sizeof(packet->imsi));
+        dev_map[n].imsi[sizeof(packet->imsi)] = 0;
         break;
+        
     case MIFI_CLI_LOGOUT:
         n = find_dev_map(sd, packet);
         dev_map[n].valid = 0;
@@ -280,24 +286,31 @@ int handle_packet_post(int sd, PMIFI_PACKET packet)
     switch (func) {
     case MIFI_USR_CHECK:
         {
-            char *url = "http://share.weiyun.com/5d2734e25695756f7c7daa6b1c51ca68";
+            //char *url = "http://baike.baidu.com/";
+            struct PACK_ALIGN(1) {
+                u16 bytes;
+                u32 time;
+            } allow;
 
             //n = find_dev_map(sd, packet);
 
-            datalen = strlen(url);
+            datalen = 6 + 4 + 2;
             packetlen =  sizeof(MIFI_PACKET ) + datalen;
-            p = (PMIFI_PACKET)malloc(packetlen);
+            p = (PMIFI_PACKET)malloc(packetlen + 1);
             
-            p->func = SERV_REQ_UPGRADE;
+            p->func = SERV_SET_PERMIT;
             p->sn_packet = __builtin_bswap32(get_packet_sn());
             memcpy(p->id_device, packet->id_device, sizeof(p->id_device));
             memcpy(p->imsi, packet->imsi, sizeof(p->imsi));
             memset(p->reserved, 0, sizeof(p->reserved));
             p->datalen = __builtin_bswap16(datalen);
-            memcpy(p->data, url, datalen);
+            memcpy(p->data, packet->data, 6);
+            allow.bytes = __builtin_bswap16(50); // 50M
+            allow.time = __builtin_bswap16(3600); // 1 hours
+            memcpy(p->data + 6, &allow, 6);
             sum = get_checksum((u8 *)p, packetlen);
             *(((u8 *)p) + packetlen) = sum;
-            push_data(sd, (u8 *)p, packetlen);
+            push_data(sd, (u8 *)p, packetlen + 1);
         }
         break;
     }
@@ -384,6 +397,8 @@ int cmd_handle(int UNUSED(sd), char *line)
     if (argc <= 0)
         return ERROR;
 
+    DBG_OUT("argc is %d\n", argc);
+    
 	func = get_cmdid(argv[0]);
 	if (func < 0) {
 		printf("unknown command: %s\n", argv[0]);
@@ -392,6 +407,35 @@ int cmd_handle(int UNUSED(sd), char *line)
 
 	switch (func) {
 	case SERV_REQ_UPGRADE:
+        {
+            PMIFI_PACKET p;
+            char *url = "http://url.cn/QyCLQu";
+            int i, datalen, packetlen;
+            u8 sum;
+            
+            datalen = strlen(url);
+            packetlen =  sizeof(MIFI_PACKET ) + datalen;
+
+            for (i = 0; i < ARRAY_SIZE(dev_map); i++)
+            {
+                if (dev_map[i].valid == 1) {
+                    p = (PMIFI_PACKET)malloc(packetlen + 1);
+                    
+                    p->func = SERV_REQ_UPGRADE;
+                    p->sn_packet = __builtin_bswap32(get_packet_sn());
+                    memcpy(p->id_device, dev_map[i].devid, sizeof(p->id_device));
+                    memcpy(p->imsi, dev_map[i].imsi, sizeof(p->imsi));
+                    memset(p->reserved, 0, sizeof(p->reserved));
+                    p->datalen = __builtin_bswap16(datalen);
+                    memcpy(p->data, url, datalen);
+                    sum = get_checksum((u8 *)p, packetlen);
+                    *(((u8 *)p) + packetlen) = sum;
+
+                    push_data(dev_map[i].sd, (u8 *)p, packetlen + 1);
+                }
+            }
+            free(p);
+        }
         break;
 
 	default:

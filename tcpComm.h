@@ -88,6 +88,7 @@ u32  get_packet_sn(void);
 
 #define SERV_SET_PARAMS   0x5401
 #define SERV_SET_TRUSTS   0x5501
+#define SERV_SET_PERMIT   0x5601
 
 #define SERV_REQ_UPGRADE  0x7101
 
