@@ -45,8 +45,6 @@ struct dev_map{
 
 void* send_thread(void *arg)
 {
-//	struct receive_param *rpar = (struct receive_param *)arg;
-//	char line[MAX_MSG];
     struct msg_packet *msg;
 
 	while(1) {
@@ -79,7 +77,7 @@ int main(int UNUSED(argc), char *argv[])
     const int num_threads = 2;
 	pthread_t tid[num_threads];
 //	void *status;
-	struct listen_param lpar;
+	struct listen_param lis_para;
     char *line;
 
     que_msg = CreateQueue(100);
@@ -88,9 +86,9 @@ int main(int UNUSED(argc), char *argv[])
 
 	memset(&dev_map, 0, sizeof(dev_map));
 
-	lpar.port = SERVER_PORT;
-	lpar.receive_thread = receive_thread;
-	pthread_create(&tid[0], NULL, listen_thread, &lpar);
+	lis_para.port = SERVER_PORT;
+	lis_para.receive_thread = receive_thread;
+	pthread_create(&tid[0], NULL, listen_thread, &lis_para);
 	
     pthread_create(&tid[1], NULL, send_thread, &que_msg);
 	
@@ -139,7 +137,7 @@ void push_data(int sd, u8 *data, int len)
 
 void* receive_thread(void *arg)
 {
-	struct receive_param *rpar = (struct receive_param *)arg;
+	struct receive_param *rcv_para = (struct receive_param *)arg;
 	char line[MAX_MSG], resp[MAX_MSG];
 	u8 sum;
 	int len;
@@ -148,7 +146,7 @@ void* receive_thread(void *arg)
 	memset(line, 0x0, MAX_MSG);
 
 	/* receive segments */
-	while (read_packet(rpar->sd, (PMIFI_PACKET) line) != ERROR) {
+	while (read_packet(rcv_para->sd, (PMIFI_PACKET) line) != ERROR) {
 
 //		printf("received from %s:TCP%d : \n",
 //				inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port));
@@ -160,21 +158,21 @@ void* receive_thread(void *arg)
         if ((u8)line[len - 1] != sum)
             DBG_OUT("*** check sum fail\n");
 
-        handle_packet(rpar->sd, (PMIFI_PACKET)line);
+        handle_packet(rcv_para->sd, (PMIFI_PACKET)line);
 		len = server_build_response((PMIFI_PACKET)line, (PMIFI_PACKET)resp);
 		DBG_OUT("build response len is %d\n", len);
 		if (len > 0) {
 			//dump_packet((PMIFI_PACKET) resp);
 
             DBG_OUT("enqueue packet to queue\n");
-            push_data(rpar->sd, (u8*)resp, len);
+            push_data(rcv_para->sd, (u8*)resp, len);
 		}
-        handle_packet_post(rpar->sd, (PMIFI_PACKET)line);
+        handle_packet_post(rcv_para->sd, (PMIFI_PACKET)line);
 		/* init line */
 		memset(line, 0x0, MAX_MSG);
 	} /* while(read_line) */
 
-	free(rpar);
+	free(rcv_para);
 	return NULL;
 }
 
@@ -186,7 +184,7 @@ void* listen_thread(void *arg)
 
 	struct sockaddr_in cliAddr;
 	struct sockaddr_in servAddr;
-	struct listen_param *lpar = (struct listen_param*)arg;
+	struct listen_param *lis_para = (struct listen_param*)arg;
 
 	/* create socket */
 	sd = socket(AF_INET, SOCK_STREAM, 0);
@@ -198,9 +196,9 @@ void* listen_thread(void *arg)
 	/* bind server port */
 	servAddr.sin_family = AF_INET;
 	servAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	servAddr.sin_port = htons(lpar->port);
+	servAddr.sin_port = htons(lis_para->port);
 
-	printf("bind on TCP port %u\n", lpar->port);
+	printf("bind on TCP port %u\n", lis_para->port);
 	if (bind(sd, (struct sockaddr *) &servAddr, sizeof(servAddr)) < 0) {
 		perror("cannot bind port ");
 		return NULL;
@@ -210,7 +208,7 @@ void* listen_thread(void *arg)
 
 	while (1) {
 
-		printf("waiting for data on TCP port %u\n", lpar->port);
+		printf("waiting for data on TCP port %u\n", lis_para->port);
 
 		cliLen = sizeof(cliAddr);
 		newSd = accept(sd, (struct sockaddr *) &cliAddr, &cliLen);
@@ -220,9 +218,9 @@ void* listen_thread(void *arg)
 		}
 		
 		// create new thread
-		struct receive_param *rpar = (struct receive_param *)malloc(sizeof(struct receive_param));
-		rpar->sd = newSd;
-		pthread_create(&tid, NULL, lpar->receive_thread, rpar);
+		struct receive_param *rcv_para = (struct receive_param *)malloc(sizeof(struct receive_param));
+		rcv_para->sd = newSd;
+		pthread_create(&tid, NULL, lis_para->receive_thread, rcv_para);
 	}
 	return NULL;
 }
@@ -230,7 +228,7 @@ void* listen_thread(void *arg)
 int find_free_map(void)
 {
     int i;
-    //struct dev_map
+
     for (i = 0; i < ARRAY_SIZE(dev_map); i++)
     {
         if (dev_map[i].valid == 0)
