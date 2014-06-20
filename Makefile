@@ -23,7 +23,7 @@ endif
 
 CFLAGS += -DDEBUG
 CFLAGS += -Wall -g
-LDFLAGS = -Wall -g
+LDFLAGS = -Wall -g -pthread
 
 .PHONY: test
 test:

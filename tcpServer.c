@@ -23,7 +23,7 @@
 //#define END_LINE 0x0
 
 Queue que_msg;
-pthread_mutex_t mutex_msg;
+pthread_mutex_t mutex_msg = PTHREAD_MUTEX_INITIALIZER;
 sem_t sem_msg;
 
 struct receive_param {
@@ -83,7 +83,7 @@ int main(int UNUSED(argc), char *argv[])
     char *line;
 
     que_msg = CreateQueue(100);
-    mutex_msg = PTHREAD_MUTEX_INITIALIZER;
+    //mutex_msg = PTHREAD_MUTEX_INITIALIZER;
     sem_init(&sem_msg, 0, 0);
 
 	memset(&dev_map, 0, sizeof(dev_map));
