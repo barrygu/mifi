@@ -197,13 +197,14 @@ void push_data(int sd, u8 *data, int len)
 
 void* send_thread(void *arg)
 {
+	struct send_param *sp = (struct send_param*)arg;
     struct msg_packet *msg;
 
 	while(1) {
-		sem_wait(&sem_msg);
-        pthread_mutex_lock(&mutex_msg);
-        msg = (struct msg_packet *)FrontAndDequeue(que_msg);
-        pthread_mutex_unlock(&mutex_msg);
+		sem_wait(sp->sem_msg);
+        pthread_mutex_lock(sp->mutex_msg);
+        msg = (struct msg_packet *)FrontAndDequeue(sp->que_msg);
+        pthread_mutex_unlock(sp->mutex_msg);
         DBG_OUT("sending %d bytes data to client...", msg->len);
         dump_packet((PMIFI_PACKET) msg->data);
         send(msg->sd, msg->data, msg->len, 0);

@@ -65,6 +65,12 @@ struct msg_packet {
     u8  data[0];
 };
 
+struct send_param {
+	Queue que_msg;
+	pthread_mutex_t *mutex_msg;
+	sem_t *sem_msg;
+};
+
 extern Queue que_msg;
 extern pthread_mutex_t mutex_msg;
 extern sem_t sem_msg;

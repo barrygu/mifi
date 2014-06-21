@@ -14,15 +14,13 @@
 #include <stdlib.h>
 #include <semaphore.h>
 #include <termios.h>
-#include <mcheck.h>
+//#include <mcheck.h>
 
 //#define DEBUG
 #include "tcpComm.h"
 #include "tcpServer.h"
 #include "queue.h"
 #include "linenoise.h"
-
-//#define END_LINE 0x0
 
 struct dev_map{
     int sd;
@@ -49,10 +47,10 @@ int main(int UNUSED(argc), char *argv[])
 	pthread_t tid[num_threads];
 //	void *status;
 	struct listen_param lis_para;
+	struct send_param send_para;
     char *line;
-    //struct termios orig_termios, new_termios;
 
-    mtrace();
+    //mtrace();
     que_msg = CreateQueue(100);
     sem_init(&sem_msg, 0, 0);
 
@@ -62,18 +60,16 @@ int main(int UNUSED(argc), char *argv[])
 	lis_para.receive_thread = receive_thread;
 	pthread_create(&tid[0], NULL, listen_thread, &lis_para);
 	
-    pthread_create(&tid[1], NULL, send_thread, &que_msg);
-
-    //tcgetattr(0,&orig_termios);
-    //new_termios = orig_termios;
-    //new_termios.c_oflag |= OCRNL|OPOST;
+	send_para.que_msg = que_msg;
+	send_para.mutex_msg = &mutex_msg;
+	send_para.sem_msg = &sem_msg;
+    pthread_create(&tid[1], NULL, send_thread, &send_para);
 
     linenoiseHistoryLoad("hist-srv.txt"); /* Load the history at startup */
     while((line = linenoise("srv> ")) != NULL) {
         /* Do something with the string. */
         if (line[0] != '\0' && line[0] != '/') {
             //printf("echo: '%s'\n", line);
-            //tcsetattr(0,TCSAFLUSH,&new_termios);
             cmd_handle(0, line);
             linenoiseHistoryAdd(line); /* Add to the history. */
             linenoiseHistorySave("hist-srv.txt"); /* Save the history on disk. */
@@ -181,7 +177,7 @@ void* listen_thread(void *arg)
 		}
 		
 		// create new thread
-		struct receive_param rcv_para ={0};// (struct receive_param *)malloc(sizeof(struct receive_param));
+		struct receive_param rcv_para ={0};
 		rcv_para.sd = newSd;
 		pthread_create(&tid, NULL, lis_para->receive_thread, &rcv_para);
 		pthread_detach(tid);
