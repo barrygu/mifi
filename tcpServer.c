@@ -13,6 +13,8 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <semaphore.h>
+#include <termios.h>
+#include <mcheck.h>
 
 //#define DEBUG
 #include "tcpComm.h"
@@ -22,43 +24,12 @@
 
 //#define END_LINE 0x0
 
-Queue que_msg;
-pthread_mutex_t mutex_msg = PTHREAD_MUTEX_INITIALIZER;
-sem_t sem_msg;
-
-struct receive_param {
-	int sd;
-};
-
-struct msg_packet {
-    int sd;
-    int len;
-    u8  data[0];
-};
-
 struct dev_map{
     int sd;
     int valid;
     char devid[11+1];
     char imsi[15+1];
 }dev_map[10];
-
-void* send_thread(void *arg)
-{
-    struct msg_packet *msg;
-
-	while(1) {
-		sem_wait(&sem_msg);
-        pthread_mutex_lock(&mutex_msg);
-        msg = (struct msg_packet *)FrontAndDequeue(que_msg);
-        pthread_mutex_unlock(&mutex_msg);
-        DBG_OUT("sending %d bytes data to client...\n", msg->len);
-        dump_packet((PMIFI_PACKET) msg->data);
-        send(msg->sd, msg->data, msg->len, 0);
-        DBG_OUT("sent done\n");
-        free((void *)msg);
-	}
-}
 
 struct listen_param{
 	int port;
@@ -79,9 +50,10 @@ int main(int UNUSED(argc), char *argv[])
 //	void *status;
 	struct listen_param lis_para;
     char *line;
+    //struct termios orig_termios, new_termios;
 
+    mtrace();
     que_msg = CreateQueue(100);
-    //mutex_msg = PTHREAD_MUTEX_INITIALIZER;
     sem_init(&sem_msg, 0, 0);
 
 	memset(&dev_map, 0, sizeof(dev_map));
@@ -91,12 +63,17 @@ int main(int UNUSED(argc), char *argv[])
 	pthread_create(&tid[0], NULL, listen_thread, &lis_para);
 	
     pthread_create(&tid[1], NULL, send_thread, &que_msg);
-	
+
+    //tcgetattr(0,&orig_termios);
+    //new_termios = orig_termios;
+    //new_termios.c_oflag |= OCRNL|OPOST;
+
     linenoiseHistoryLoad("hist-srv.txt"); /* Load the history at startup */
     while((line = linenoise("srv> ")) != NULL) {
         /* Do something with the string. */
         if (line[0] != '\0' && line[0] != '/') {
             //printf("echo: '%s'\n", line);
+            //tcsetattr(0,TCSAFLUSH,&new_termios);
             cmd_handle(0, line);
             linenoiseHistoryAdd(line); /* Add to the history. */
             linenoiseHistorySave("hist-srv.txt"); /* Save the history on disk. */
@@ -121,58 +98,44 @@ int main(int UNUSED(argc), char *argv[])
 	return 0;
 }
 
-void push_data(int sd, u8 *data, int len)
-{
-    struct msg_packet *msg = (struct msg_packet *)malloc(len + sizeof(struct msg_packet));
-    
-    msg->sd = sd;
-    msg->len = len;
-    memcpy(msg->data, data, len);
-    DBG_OUT("push %d bytes data to queue\n", len);
-    pthread_mutex_lock(&mutex_msg);
-    Enqueue((ElementType)msg, que_msg);
-    pthread_mutex_unlock(&mutex_msg);
-    sem_post(&sem_msg);
-}
-
 void* receive_thread(void *arg)
 {
-	struct receive_param *rcv_para = (struct receive_param *)arg;
-	char line[MAX_MSG], resp[MAX_MSG];
+	struct receive_param rcv_para = *((struct receive_param *)arg);
+	PMIFI_PACKET packet, resp;
 	u8 sum;
 	int len;
+	const int buff_len = 1024;
 	
-	/* init line */
-	memset(line, 0x0, MAX_MSG);
+	packet = (PMIFI_PACKET)malloc(buff_len);
+	resp = (PMIFI_PACKET)malloc(buff_len);
+	memset(packet, 0x0, buff_len);
 
-	/* receive segments */
-	while (read_packet(rcv_para->sd, (PMIFI_PACKET) line) != ERROR) {
+	while (read_packet(rcv_para.sd, packet) != ERROR) {
+		DBG_OUT("Process received packet");
 
-//		printf("received from %s:TCP%d : \n",
-//				inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port));
+		len = get_packet_len(packet);
+		sum = get_checksum((u8*)packet, len - 1);
+		DBG_OUT("len = %d, recv sum = 0x%02x, calc sum = 0x%02x", len, ((u8*)packet)[len - 1], sum);
+		dump_packet(packet);
+        if (((u8*)packet)[len - 1] != sum)
+            DBG_OUT("*** check sum fail");
 
-		len = get_packet_len((PMIFI_PACKET) line);
-		sum = get_checksum((u8*)line, len - 1);
-		DBG_OUT("len = %d, recv sum = 0x%02x, calc sum = 0x%02x\n", len, (u8)line[len - 1], sum);
-		dump_packet((PMIFI_PACKET) line);
-        if ((u8)line[len - 1] != sum)
-            DBG_OUT("*** check sum fail\n");
-
-        handle_packet(rcv_para->sd, (PMIFI_PACKET)line);
-		len = server_build_response((PMIFI_PACKET)line, (PMIFI_PACKET)resp);
-		DBG_OUT("build response len is %d\n", len);
+        handle_packet(rcv_para.sd, packet);
+		len = server_build_response(packet, resp);
+		DBG_OUT("build response len is %d", len);
 		if (len > 0) {
-			//dump_packet((PMIFI_PACKET) resp);
-
-            DBG_OUT("enqueue packet to queue\n");
-            push_data(rcv_para->sd, (u8*)resp, len);
+            DBG_OUT("enqueue packet to queue");
+            push_data(rcv_para.sd, (u8*)resp, len);
 		}
-        handle_packet_post(rcv_para->sd, (PMIFI_PACKET)line);
-		/* init line */
-		memset(line, 0x0, MAX_MSG);
-	} /* while(read_line) */
+        handle_packet_post(rcv_para.sd, packet);
 
-	free(rcv_para);
+		memset(packet, 0x0, buff_len);
+	} /* while(read_packet) */
+
+	DBG_OUT("terminated thread %#x", (u32)pthread_self());
+	free(packet);
+	free(resp);
+	pthread_exit((void *)0);
 	return NULL;
 }
 
@@ -208,7 +171,7 @@ void* listen_thread(void *arg)
 
 	while (1) {
 
-		printf("waiting for data on TCP port %u\n", lis_para->port);
+		DBG_OUT("waiting for data on TCP port %u", lis_para->port);
 
 		cliLen = sizeof(cliAddr);
 		newSd = accept(sd, (struct sockaddr *) &cliAddr, &cliLen);
@@ -218,10 +181,12 @@ void* listen_thread(void *arg)
 		}
 		
 		// create new thread
-		struct receive_param *rcv_para = (struct receive_param *)malloc(sizeof(struct receive_param));
-		rcv_para->sd = newSd;
-		pthread_create(&tid, NULL, lis_para->receive_thread, rcv_para);
+		struct receive_param rcv_para ={0};// (struct receive_param *)malloc(sizeof(struct receive_param));
+		rcv_para.sd = newSd;
+		pthread_create(&tid, NULL, lis_para->receive_thread, &rcv_para);
+		pthread_detach(tid);
 	}
+	pthread_exit((void *)0);
 	return NULL;
 }
 
@@ -343,7 +308,7 @@ int server_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
         {
             char *purl = "http://news.baidu.com";
             datalen = strlen(purl);
-            resp->datalen = __builtin_bswap16(datalen); //0x0200; // little-endian: 0x0002
+            resp->datalen = __builtin_bswap16(datalen);
             strcpy((char *)resp->data, purl);
         }
         break;
@@ -395,11 +360,11 @@ int cmd_handle(int UNUSED(sd), char *line)
     if (argc <= 0)
         return ERROR;
 
-    DBG_OUT("argc is %d\n", argc);
+    DBG_OUT("argc is %d", argc);
     
 	func = get_cmdid(argv[0]);
 	if (func < 0) {
-		printf("unknown command: %s\n", argv[0]);
+		printf("unknown command: %s\r\n", argv[0]);
 		return ERROR;
 	}
 
@@ -437,7 +402,7 @@ int cmd_handle(int UNUSED(sd), char *line)
         break;
 
 	default:
-		printf("func isn't impletement: %d\n", func);
+		DBG_OUT("func isn't impletement: %d", func);
 		return ERROR;
     }
     return 0;

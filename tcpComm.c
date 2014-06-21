@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <unistd.h> /* close */
 #include <string.h>
+#include <stdlib.h>
 
 //#define DEBUG
 #include "tcpComm.h"
@@ -19,13 +20,13 @@ void dump_data(u8 *pdata, int datalen, int line_width) {
 	for (i = 0; i < datalen; i++) {
 		if (i) {
 			if (!(i % line_width))
-				printf("\n");
+				printf("\r\n");
 			else if (!(i % (line_width / 2)))
 				printf("- ");
 		}
 		printf("%02x ", *pdata++);
 	}
-	printf("\n");
+	printf("\r\n");
 }
 
 void dump_packet(PMIFI_PACKET packet) {
@@ -52,37 +53,41 @@ int get_packet_len(PMIFI_PACKET packet)
 
 int read_packet(int sd, PMIFI_PACKET packet) {
 	int rcv_ptr = 0;
-	static char rcv_msg[MAX_MSG];
+	char *rcv_msg;
 	int rcv_len = 0, tmp;
 	int offset = 0, datalen = 0;
 	const int sizeof_fixlen = sizeof(MIFI_PACKET);
+	const int buff_len = 1024;
 
 	char *rcv_buff = (char *) packet;
 
 	offset = 0;
+	rcv_msg = (char *)malloc(buff_len);
 
 	while (1) {
 		rcv_ptr = 0;
 		/* read data from socket */
-		memset(rcv_msg, 0x0, MAX_MSG); /* init buffer */
-		rcv_len = recv(sd, rcv_msg, MAX_MSG, 0); /* wait for data */
+		memset(rcv_msg, 0x0, buff_len); /* init buffer */
+		rcv_len = recv(sd, rcv_msg, buff_len, 0); /* wait for data */
 		if (rcv_len < 0) {
 			perror(" cannot receive data ");
+			free(rcv_msg);
 			return ERROR;
 		} else if (rcv_len == 0) {
-			DBG_OUT(" connection closed by client\n");
+			DBG_OUT(" connection closed by client");
 			close(sd);
+			free(rcv_msg);
 			return ERROR;
 		}
 
-		DBG_OUT("fixlen = %d, offset = %d, rcv_len = %d\n",
-				sizeof_fixlen, offset, rcv_len);
+		//DBG_OUT("fixlen = %d, offset = %d, rcv_len = %d",
+		//		sizeof_fixlen, offset, rcv_len);
 		if (offset < sizeof_fixlen) {
 			if (offset + rcv_len < sizeof_fixlen) {
 				memcpy(rcv_buff + offset, rcv_msg, rcv_len);
 				offset += rcv_len;
 				rcv_ptr += rcv_len;
-				DBG_OUT("offset = %d, rcv_ptr = %d\n", offset, rcv_ptr);
+				//DBG_OUT("offset = %d, rcv_ptr = %d", offset, rcv_ptr);
 				continue;
 			} else {
 				tmp = sizeof_fixlen - offset;
@@ -93,18 +98,19 @@ int read_packet(int sd, PMIFI_PACKET packet) {
 				offset += tmp;
 				rcv_ptr += tmp; // 移动数据指针
 
-				DBG_OUT("datalen = %d, rcv_ptr = %d, offset = %d\n",
-						datalen, rcv_ptr, offset);
+				//DBG_OUT("datalen = %d, rcv_ptr = %d, offset = %d",
+				//		datalen, rcv_ptr, offset);
 				if (rcv_len < datalen) {
-					DBG_OUT("offset = %d, rcv_ptr = %d\n", offset, rcv_ptr);
+					DBG_OUT("offset = %d, rcv_ptr = %d", offset, rcv_ptr);
 					rcv_len -= tmp;
 					memcpy(rcv_buff + offset, rcv_msg + rcv_ptr, rcv_len);
 					offset += rcv_len;
 					continue; // 将接收到的剩余全部数据读入接收缓冲
 				} else {
-					DBG_OUT("offset = %d, rcv_ptr = %d\n", offset, rcv_ptr);
+					//DBG_OUT("offset = %d, rcv_ptr = %d", offset, rcv_ptr);
 					memcpy(rcv_buff + offset, rcv_msg + rcv_ptr,
 							(datalen - offset));
+					free(rcv_msg);
 					return 0; // 将指定长度的数据读入接收缓冲
 				}
 			}
@@ -112,23 +118,25 @@ int read_packet(int sd, PMIFI_PACKET packet) {
 			// 读取数据长度
 			datalen = get_packet_len((PMIFI_PACKET) rcv_buff);
 
-			DBG_OUT("datalen = %d, offset = %d, rcv_ptr = %d, rcv_len = %d\n",
-					datalen, offset, rcv_ptr, rcv_len);
+			//DBG_OUT("datalen = %d, offset = %d, rcv_ptr = %d, rcv_len = %d",
+			//		datalen, offset, rcv_ptr, rcv_len);
 			tmp = rcv_len - rcv_ptr;
 			if (tmp < (datalen - offset)) {
 				memcpy(rcv_buff + offset, rcv_msg + rcv_ptr, tmp);
 				rcv_ptr += tmp;
 				offset += tmp;
-				DBG_OUT("offset = %d, rcv_ptr = %d\n", offset, rcv_ptr);
+				DBG_OUT("offset = %d, rcv_ptr = %d", offset, rcv_ptr);
 				continue; // 将接收到的剩余全部数据读入接收缓冲
 			} else {
 				memcpy(rcv_buff + offset, rcv_msg + rcv_ptr,
 						(datalen - offset));
-				DBG_OUT("\n");
+				//DBG_OUT(" ");
+				free(rcv_msg);
 				return 0; // 将指定长度的数据读入接收缓冲
 			}
 		}
 	} // while
+	free(rcv_msg);
 	return 0;
 }
 
@@ -167,3 +175,42 @@ u32 get_packet_sn(void)
 	static u32 sn = 0;
 	return ++sn;
 }
+
+Queue que_msg;
+pthread_mutex_t mutex_msg = PTHREAD_MUTEX_INITIALIZER;
+sem_t sem_msg;
+
+void push_data(int sd, u8 *data, int len)
+{
+	int datalen = len + sizeof(struct msg_packet);
+    struct msg_packet *msg = (struct msg_packet *)malloc(datalen);
+
+    msg->sd = sd;
+    msg->len = len;
+    memcpy(msg->data, data, len);
+    DBG_OUT("push %d bytes data to queue\n", len);
+    pthread_mutex_lock(&mutex_msg);
+    Enqueue((ElementType)msg, que_msg);
+    pthread_mutex_unlock(&mutex_msg);
+    sem_post(&sem_msg);
+}
+
+void* send_thread(void *arg)
+{
+    struct msg_packet *msg;
+
+	while(1) {
+		sem_wait(&sem_msg);
+        pthread_mutex_lock(&mutex_msg);
+        msg = (struct msg_packet *)FrontAndDequeue(que_msg);
+        pthread_mutex_unlock(&mutex_msg);
+        DBG_OUT("sending %d bytes data to client...", msg->len);
+        dump_packet((PMIFI_PACKET) msg->data);
+        send(msg->sd, msg->data, msg->len, 0);
+        DBG_OUT("sent done\n");
+        free((void *)msg);
+	}
+	pthread_exit((void *)0);
+	return NULL;
+}
+

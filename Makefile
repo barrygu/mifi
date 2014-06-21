@@ -1,8 +1,8 @@
 LOC_TEST :=  true
 
-CLI-SRCS := tcpClient.c tcpClient.h 
-SVR-SRCS := tcpServer.c tcpServer.h queue.c queue.h
-COMMON-SRCS := tcpComm.c tcpComm.h linenoise.c linenoise.h
+CLI-SRCS := tcpClient.c tcpClient.h
+SVR-SRCS := tcpServer.c tcpServer.h
+COMMON-SRCS := tcpComm.c tcpComm.h linenoise.c linenoise.h queue.c queue.h
 
 #SRCS := $(SVR-SRCS) $(CLI-SRCS) $(COMMON-SRCS)
 

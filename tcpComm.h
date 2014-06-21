@@ -1,6 +1,10 @@
 #ifndef __MIFI_TCP_H__
 #define __MIFI_TCP_H__
 
+#include <pthread.h>
+#include <semaphore.h>
+#include "queue.h"
+
 //#define SERVER_PORT 6588
 #define SERVER_PORT 8588
 
@@ -13,11 +17,23 @@
 # define UNUSED(x) x
 #endif
 
+#ifdef DEBUG
+	#define DBG_OUT(x...) do { printf("[%s,%s(),%d]: ", __FILE__, __FUNCTION__, __LINE__); printf(x); printf("\r\n");} while(0)
+#else
+	#define DBG_OUT(...) do {} while(0)
+#endif
+
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+#define PACK_ALIGN(x) __attribute__((packed, aligned(x)))
+
+//#define MAX_MSG 100
+#define SUCCESS 0
+#define ERROR   -1
+
 typedef unsigned char u8;
 typedef unsigned short u16;
 typedef unsigned int u32;
 
-#define PACK_ALIGN(x) __attribute__((packed, aligned(x)))
 typedef struct PACK_ALIGN(1) mifi_packet {
 	u16 func;
 	u32 sn_packet;
@@ -39,17 +55,19 @@ typedef struct PACK_ALIGN(1) mifi_alive {
   u32 used_bytes; // Mega bytes
 }MIFI_ALIVE;
 
-#ifdef DEBUG
-	#define DBG_OUT(x...) do { printf("[%s,%s(),%d]: ", __FILE__, __FUNCTION__, __LINE__); printf(x); } while(0)
-#else
-	#define DBG_OUT(...) do {} while(0)
-#endif
+struct receive_param {
+	int sd;
+};
 
-#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+struct msg_packet {
+    int sd;
+    int len;
+    u8  data[0];
+};
 
-#define MAX_MSG 100
-#define SUCCESS 0
-#define ERROR   -1
+extern Queue que_msg;
+extern pthread_mutex_t mutex_msg;
+extern sem_t sem_msg;
 
 void dump_data(u8 *pdata, int datalen, int line_width);
 void dump_packet(PMIFI_PACKET packet);
@@ -59,6 +77,8 @@ int  get_packet_len(PMIFI_PACKET packet);
 int  make_argv(char *s, int argvsz, char *argv[]);
 u32  get_packet_sn(void);
 
+void push_data(int sd, u8 *data, int len);
+void* send_thread(void *arg);
 
 #define MIFI_CMD_HELP     0x8888
 #define MIFI_CMD_READ     0x8889

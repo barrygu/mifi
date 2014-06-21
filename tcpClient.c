@@ -48,7 +48,7 @@ int main(int UNUSED(argc), char *argv[])
             int len = atoi(line+11);
             linenoiseHistorySetMaxLen(len);
         } else if (line[0] == '/') {
-            printf("Unreconized command: %s\n", line);
+            printf("Unreconized command: %s\r\n", line);
         } else {
         	printf("\n");
         }
@@ -92,10 +92,11 @@ int get_cmdid(char *cmd)
 int cmd_handle(int sd, char *cmd)
 {
 	int i, rc, len;
-	u8 sum, buff[512];
+	u8 sum, *buff;
 	int func;
     int argc;
     char *argv[10];
+    const int buff_size = 1024;
 
     argc = make_argv(cmd, ARRAY_SIZE(argv), argv);
     if (argc <= 0)
@@ -107,19 +108,20 @@ int cmd_handle(int sd, char *cmd)
 		return ERROR;
 	}
 
+	buff = (u8*)malloc(buff_size);
 	switch (func) {
 	case MIFI_CLI_LOGIN:
 	case MIFI_CLI_ALIVE:
 	case MIFI_CLI_LOGOUT:
     case MIFI_USR_CHECK:
-		memset(buff, 0, sizeof(buff));
+		memset(buff, 0, buff_size);
 		len = build_packet((PMIFI_PACKET)buff, func);
 		break;
 
     case MIFI_CMD_HELP:
         for (i = 0; i < ARRAY_SIZE(cmds); i++)
         {
-            printf("  %s\n", cmds[i].cmd);
+            printf("  %s\r\n", cmds[i].cmd);
         }
         return 0;
 
@@ -127,31 +129,33 @@ int cmd_handle(int sd, char *cmd)
         break;
 
 	default:
-		printf("func isn't impletement: %d\n", func);
+		printf("func isn't impletement: %d\r\n", func);
 		return ERROR;
 	}
 
     if (func != MIFI_CMD_READ) {
-        printf("send request packet:\n");
+        DBG_OUT("send request packet:");
         dump_packet((PMIFI_PACKET)buff);
-        rc = send(sd, &buff[0], len, 0);
+        rc = send(sd, buff, len, 0);
 
         if (rc < 0) {
             perror("cannot send data ");
             close(sd);
+            free(buff);
             return ERROR;
         }
     }
-	printf("waiting for server response\n");
+	DBG_OUT("waiting for server response");
 	rc = read_packet(sd, (PMIFI_PACKET)buff);
 	if (rc != ERROR) {
 		len = get_packet_len((PMIFI_PACKET)buff);
 		sum = get_checksum(buff, len - 1);
 		//printf("len = %d, recv sum = 0x%02x, calc sum = 0x%02x\n", len, buff[len - 1], sum);
 		dump_packet((PMIFI_PACKET) buff);
-		if (sum != buff[len - 1]) printf("+++++ warning: response checksum is wrong\n");
+		if (sum != buff[len - 1]) printf("+++++ warning: response checksum is wrong\r\n");
 	}
-	printf("handle command \"%s\" end\n", argv[0]);
+	DBG_OUT("handle command \"%s\" end", argv[0]);
+	free(buff);
 	return 0;
 }
 
@@ -288,7 +292,7 @@ int establish_connection(char *server, int port)
 
 	h = gethostbyname(server);
 	if (h == NULL) {
-		printf("unknown host '%s'\n", server);
+		printf("unknown host '%s'\r\n", server);
 		return ERROR;
 	}
 
@@ -310,12 +314,12 @@ int establish_connection(char *server, int port)
 
 	rc = bind(sd, (struct sockaddr *) &localAddr, sizeof(localAddr));
 	if (rc < 0) {
-		printf("cannot bind port TCP %u\n", port);
+		DBG_OUT("cannot bind port TCP %u", port);
 		perror("error ");
 		return ERROR;
 	}
 
-	printf("connecting to server: %s\r\n", server);
+	DBG_OUT("connecting to server: %s", server);
 	/* connect to server */
 	rc = connect(sd, (struct sockaddr *) &servAddr, sizeof(servAddr));
 	if (rc < 0) {
