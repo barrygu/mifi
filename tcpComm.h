@@ -103,7 +103,7 @@ void* send_thread(void *arg);
 #define SERV_REQ_STATES   0x3101
 #define SERV_REQ_TRUSTS   0x3201
 
-#define SERV_REQ_KICKOUT  0x5001
+#define SERV_REQ_KICKCLI  0x5001
 #define SERV_REQ_KICKUSR  0x5101
 #define SERV_REQ_REBOOT   0x5201
 #define SERV_REQ_FACTORY  0x5301

@@ -22,6 +22,7 @@ int get_device_id(u8 *pDevId);
 int get_device_imsi(u8 *pImsi);
 int get_device_version(u8 *pVer);
 int get_client_mac(u8 *pMac);
-u32 get_packet_sn(void);
+int get_user_mac(u8 *pMac);
+//u32 get_packet_sn(void);
 
 #endif // __MIFI_CLI_H__

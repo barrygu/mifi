@@ -126,6 +126,8 @@ void* receive_thread(void *arg)
 				push_data(rcv_para.sd, (u8*)resp, len);
 			}
 			//handle_packet_post(rcv_para.sd, packet);
+        } else {
+        	DBG_OUT("It's a response from server, ignored.");
         }
 
 		memset(packet, 0x0, buff_len);
@@ -248,10 +250,9 @@ int client_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
 {
 	int datalen = 0, packetlen = 0;
 	u8 sum;
-	u16 func = packet->func; // __builtin_bswap16(packet->func);
+	u16 func = packet->func;
 	DBG_OUT("build response for func = 0x%02x", func);
 	memcpy(resp, packet, sizeof(*packet));
-	//resp->func = 0x8001;  // little-endian: 0x0180
 
 	switch (func)	{
 	case SERV_REQ_UPGRADE:
@@ -262,6 +263,9 @@ int client_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
 		break;
 
 	case SERV_SET_PERMIT:
+	case SERV_REQ_KICKCLI:
+	case SERV_REQ_REBOOT:
+	case SERV_REQ_FACTORY:
 		resp->func = 0x7f00;
 		datalen = 1;
 		resp->datalen = __builtin_bswap16(datalen);
@@ -320,7 +324,7 @@ int build_packet(PMIFI_PACKET packet, int func)
 		break;
 
     case MIFI_USR_CHECK:
-		datalen = get_client_mac(packet->data);
+		datalen = get_user_mac(packet->data);
 		packet->datalen = __builtin_bswap16(datalen);
         break;
 
@@ -338,6 +342,15 @@ int get_client_mac(u8 *pMac)
     u8  mac[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
     int len = sizeof(mac);
     
+    memcpy(pMac, mac, len);
+    return len;
+}
+
+int get_user_mac(u8 *pMac)
+{
+    u8  mac[6] = {0x22, 0x33, 0x44, 0x55, 0x66, 0x77};
+    int len = sizeof(mac);
+
     memcpy(pMac, mac, len);
     return len;
 }

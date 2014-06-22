@@ -142,6 +142,8 @@ void* receive_thread(void *arg)
 				push_data(rcv_para.sd, (u8*)resp, len);
 			}
 			handle_packet_post(rcv_para.sd, packet);
+        } else {
+        	DBG_OUT("It's a response packet from client, ignored.");
         }
 
 		memset(packet, 0x0, buff_len);
@@ -345,10 +347,10 @@ static struct {
     {SERV_REQ_PARAMS,  "param"},
     {SERV_REQ_STATES,  "status"},
     {SERV_REQ_TRUSTS,  "trust"},
-    {SERV_REQ_KICKOUT, "kill"},
+    {SERV_REQ_KICKCLI, "kill"},
     {SERV_REQ_KICKUSR, "kick"},
     {SERV_REQ_REBOOT,  "reboot"},
-    {SERV_REQ_FACTORY, "factory"},
+    {SERV_REQ_FACTORY, "reset"},
     {SERV_SET_PARAMS,  "setpara"},
     {SERV_SET_TRUSTS,  "setrust"},
     {SERV_REQ_UPGRADE, "upgrade"},
@@ -384,37 +386,70 @@ int cmd_handle(int UNUSED(sd), char *line)
 	}
 
 	switch (func) {
-	case SERV_REQ_UPGRADE:
+	case SERV_REQ_KICKCLI:
+	case SERV_REQ_REBOOT:
+	case SERV_REQ_FACTORY:
+    {
+        PMIFI_PACKET p;
+        int i, datalen, packetlen;
+        u8 sum;
+
+        datalen = 0;
+        packetlen =  sizeof(MIFI_PACKET ) + datalen;
+
+        for (i = 0; i < ARRAY_SIZE(dev_map); i++)
         {
-            PMIFI_PACKET p;
-            char *url = "http://url.cn/QyCLQu";
-            int i, datalen, packetlen;
-            u8 sum;
-            
-            datalen = strlen(url);
-            packetlen =  sizeof(MIFI_PACKET ) + datalen;
+            if (dev_map[i].valid == 1) {
+                p = (PMIFI_PACKET)malloc(packetlen + 1);
 
-            for (i = 0; i < ARRAY_SIZE(dev_map); i++)
-            {
-                if (dev_map[i].valid == 1) {
-                    p = (PMIFI_PACKET)malloc(packetlen + 1);
-                    
-                    p->func = SERV_REQ_UPGRADE;
-                    p->sn_packet = __builtin_bswap32(get_packet_sn());
-                    memcpy(p->id_device, dev_map[i].devid, sizeof(p->id_device));
-                    memcpy(p->imsi, dev_map[i].imsi, sizeof(p->imsi));
-                    memset(p->reserved, 0, sizeof(p->reserved));
-                    p->datalen = __builtin_bswap16(datalen);
-                    memcpy(p->data, url, datalen);
-                    sum = get_checksum((u8 *)p, packetlen);
-                    *(((u8 *)p) + packetlen) = sum;
+                p->func = func;
+                p->sn_packet = __builtin_bswap32(get_packet_sn());
+                memcpy(p->id_device, dev_map[i].devid, sizeof(p->id_device));
+                memcpy(p->imsi, dev_map[i].imsi, sizeof(p->imsi));
+                memset(p->reserved, 0, sizeof(p->reserved));
+                p->datalen = __builtin_bswap16(datalen);
+                //memcpy(p->data, url, datalen);
+                sum = get_checksum((u8 *)p, packetlen);
+                *(((u8 *)p) + packetlen) = sum;
 
-                    push_data(dev_map[i].sd, (u8 *)p, packetlen + 1);
-                }
+                push_data(dev_map[i].sd, (u8 *)p, packetlen + 1);
             }
-            free(p);
         }
-        break;
+        free(p);
+    }
+	break;
+
+	case SERV_REQ_UPGRADE:
+	{
+		PMIFI_PACKET p;
+		char *url = "http://url.cn/QyCLQu";
+		int i, datalen, packetlen;
+		u8 sum;
+
+		datalen = strlen(url);
+		packetlen =  sizeof(MIFI_PACKET ) + datalen;
+
+		for (i = 0; i < ARRAY_SIZE(dev_map); i++)
+		{
+			if (dev_map[i].valid == 1) {
+				p = (PMIFI_PACKET)malloc(packetlen + 1);
+
+				p->func = func;
+				p->sn_packet = __builtin_bswap32(get_packet_sn());
+				memcpy(p->id_device, dev_map[i].devid, sizeof(p->id_device));
+				memcpy(p->imsi, dev_map[i].imsi, sizeof(p->imsi));
+				memset(p->reserved, 0, sizeof(p->reserved));
+				p->datalen = __builtin_bswap16(datalen);
+				memcpy(p->data, url, datalen);
+				sum = get_checksum((u8 *)p, packetlen);
+				*(((u8 *)p) + packetlen) = sum;
+
+				push_data(dev_map[i].sd, (u8 *)p, packetlen + 1);
+			}
+		}
+		free(p);
+	}
+	break;
 
 	default:
 		DBG_OUT("func isn't impletement: %d", func);
