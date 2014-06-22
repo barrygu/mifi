@@ -68,7 +68,7 @@ int read_packet(int sd, PMIFI_PACKET packet) {
 		rcv_ptr = 0;
 		/* read data from socket */
 		memset(rcv_msg, 0x0, buff_len); /* init buffer */
-		rcv_len = recv(sd, rcv_msg, buff_len, 0); /* wait for data */
+		rcv_len = recv(sd, rcv_msg, 1, 0); /* wait for data */
 		if (rcv_len < 0) {
 			perror(" cannot receive data ");
 			free(rcv_msg);
@@ -101,7 +101,7 @@ int read_packet(int sd, PMIFI_PACKET packet) {
 				//DBG_OUT("datalen = %d, rcv_ptr = %d, offset = %d",
 				//		datalen, rcv_ptr, offset);
 				if (rcv_len < datalen) {
-					DBG_OUT("offset = %d, rcv_ptr = %d", offset, rcv_ptr);
+					//DBG_OUT("offset = %d, rcv_ptr = %d", offset, rcv_ptr);
 					rcv_len -= tmp;
 					memcpy(rcv_buff + offset, rcv_msg + rcv_ptr, rcv_len);
 					offset += rcv_len;
@@ -125,7 +125,7 @@ int read_packet(int sd, PMIFI_PACKET packet) {
 				memcpy(rcv_buff + offset, rcv_msg + rcv_ptr, tmp);
 				rcv_ptr += tmp;
 				offset += tmp;
-				DBG_OUT("offset = %d, rcv_ptr = %d", offset, rcv_ptr);
+				//DBG_OUT("offset = %d, rcv_ptr = %d", offset, rcv_ptr);
 				continue; // 将接收到的剩余全部数据读入接收缓冲
 			} else {
 				memcpy(rcv_buff + offset, rcv_msg + rcv_ptr,
@@ -199,16 +199,20 @@ void* send_thread(void *arg)
 {
 	struct send_param *sp = (struct send_param*)arg;
     struct msg_packet *msg;
+    int rc;
 
 	while(1) {
 		sem_wait(sp->sem_msg);
         pthread_mutex_lock(sp->mutex_msg);
         msg = (struct msg_packet *)FrontAndDequeue(sp->que_msg);
         pthread_mutex_unlock(sp->mutex_msg);
-        DBG_OUT("sending %d bytes data to client...", msg->len);
+        DBG_OUT("sending %d bytes data ...", msg->len);
         dump_packet((PMIFI_PACKET) msg->data);
-        send(msg->sd, msg->data, msg->len, 0);
-        DBG_OUT("sent done\n");
+        rc = send(msg->sd, msg->data, msg->len, 0);
+        if (rc < 0) {
+        	perror("cannot send data ");
+        }
+        DBG_OUT("sent done, waiting for next packet...\n");
         free((void *)msg);
 	}
 	pthread_exit((void *)0);

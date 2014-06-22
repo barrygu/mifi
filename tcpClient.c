@@ -22,15 +22,37 @@
 #define USED_DEV  189
 //#define USED_DEV  188
 
+struct receive_param {
+	int sd;
+};
+
+void* receive_thread(void *arg);
+int client_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp);
+
 int main(int UNUSED(argc), char *argv[]) 
 {
 	int sd;
 	char *line;
+	 const int num_threads = 2;
+	pthread_t tid[num_threads];
+	struct send_param send_para;
+	struct receive_param rcv_para;
 
 	sd = establish_connection(SERVER_ADDR, SERVER_PORT);
 	if (sd < 0) {
 		return ERROR;
 	}
+
+    que_msg = CreateQueue(100);
+    sem_init(&sem_msg, 0, 0);
+
+	send_para.que_msg = que_msg;
+	send_para.mutex_msg = &mutex_msg;
+	send_para.sem_msg = &sem_msg;
+    pthread_create(&tid[1], NULL, send_thread, &send_para);
+
+    rcv_para.sd = sd;
+    pthread_create(&tid[0], NULL, receive_thread, &rcv_para);
 
     linenoiseHistoryLoad("hist-cli.txt"); /* Load the history at startup */
     while((line = linenoise("mifi> ")) != NULL) {
@@ -57,6 +79,64 @@ int main(int UNUSED(argc), char *argv[])
 
 	close(sd);
 	return 0;
+}
+
+int is_server_response(int func)
+{
+	switch (func) {
+	case 0x8001:
+		return 1;
+	}
+	return 0;
+}
+
+void* receive_thread(void *arg)
+{
+	struct receive_param rcv_para = *((struct receive_param *)arg);
+	PMIFI_PACKET packet, resp;
+	u8 sum;
+	int len;
+	const int buff_len = 1024;
+
+	packet = (PMIFI_PACKET)malloc(buff_len);
+	resp = (PMIFI_PACKET)malloc(buff_len);
+	memset(packet, 0x0, buff_len);
+
+	while (1) {
+		DBG_OUT("Waiting for packet arriving");
+		if (read_packet(rcv_para.sd, packet) == ERROR) {
+			printf("read packet error\r\n");
+			continue;
+		}
+		DBG_OUT("Process received packet");
+
+		len = get_packet_len(packet);
+		sum = get_checksum((u8*)packet, len - 1);
+		DBG_OUT("len = %d, recv sum = 0x%02x, calc sum = 0x%02x", len, ((u8*)packet)[len - 1], sum);
+		dump_packet(packet);
+        if (((u8*)packet)[len - 1] != sum)
+            DBG_OUT("*** check sum fail");
+
+        if (is_server_response(packet->func) == 0) {
+			//handle_packet(rcv_para.sd, packet);
+			len = client_build_response(packet, resp);
+			DBG_OUT("build response len is %d", len);
+			if (len > 0) {
+				DBG_OUT("enqueue packet to queue");
+				push_data(rcv_para.sd, (u8*)resp, len);
+			}
+			//handle_packet_post(rcv_para.sd, packet);
+        }
+
+		memset(packet, 0x0, buff_len);
+	} /* while(read_packet) */
+
+	DBG_OUT("terminated thread %#x", (u32)pthread_self());
+	free(packet);
+	free(resp);
+
+	pthread_exit((void *)0);
+	return NULL;
 }
 
 static struct {
@@ -91,8 +171,8 @@ int get_cmdid(char *cmd)
 
 int cmd_handle(int sd, char *cmd)
 {
-	int i, rc, len;
-	u8 sum, *buff;
+	int i, /*rc,*/ len;
+	u8 /*sum,*/ *buff;
 	int func;
     int argc;
     char *argv[10];
@@ -134,6 +214,9 @@ int cmd_handle(int sd, char *cmd)
 	}
 
     if (func != MIFI_CMD_READ) {
+    	DBG_OUT("push packet:");
+    	push_data(sd, buff, len);
+    	/*
         DBG_OUT("send request packet:");
         dump_packet((PMIFI_PACKET)buff);
         rc = send(sd, buff, len, 0);
@@ -144,7 +227,9 @@ int cmd_handle(int sd, char *cmd)
             free(buff);
             return ERROR;
         }
+        */
     }
+    /*
 	DBG_OUT("waiting for server response");
 	rc = read_packet(sd, (PMIFI_PACKET)buff);
 	if (rc != ERROR) {
@@ -153,28 +238,34 @@ int cmd_handle(int sd, char *cmd)
 		//printf("len = %d, recv sum = 0x%02x, calc sum = 0x%02x\n", len, buff[len - 1], sum);
 		dump_packet((PMIFI_PACKET) buff);
 		if (sum != buff[len - 1]) printf("+++++ warning: response checksum is wrong\r\n");
-	}
+	}*/
 	DBG_OUT("handle command \"%s\" end", argv[0]);
 	free(buff);
 	return 0;
 }
 
-int build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
+int client_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
 {
 	int datalen = 0, packetlen = 0;
 	u8 sum;
 	u16 func = packet->func; // __builtin_bswap16(packet->func);
-
+	DBG_OUT("build response for func = 0x%02x", func);
 	memcpy(resp, packet, sizeof(*packet));
-	resp->func = 0x8001;  // little-endian: 0x0180
+	//resp->func = 0x8001;  // little-endian: 0x0180
 
 	switch (func)	{
-	case MIFI_CLI_LOGIN:
-	case MIFI_CLI_ALIVE:
-		datalen = 2;
-		resp->datalen = 0x0200; // little-endian: 0x0002
-		resp->data[0] = 'O';
-		resp->data[1] = 'K';
+	case SERV_REQ_UPGRADE:
+		resp->func &= 0xff00;
+		datalen = 1;
+		resp->datalen = __builtin_bswap16(datalen);
+		resp->data[0] = 0x00;
+		break;
+
+	case SERV_SET_PERMIT:
+		resp->func = 0x7f00;
+		datalen = 1;
+		resp->datalen = __builtin_bswap16(datalen);
+		resp->data[0] = 0x00;
 		break;
 
 	default:

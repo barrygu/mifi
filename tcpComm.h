@@ -18,7 +18,7 @@
 #endif
 
 #ifdef DEBUG
-	#define DBG_OUT(x...) do { printf("[%s,%s(),%d]: ", __FILE__, __FUNCTION__, __LINE__); printf(x); printf("\r\n");} while(0)
+	#define DBG_OUT(x...) do { /*printf("[%s,%s(),%d]: ", __FILE__, __FUNCTION__, __LINE__);*/ printf(x); printf("\r\n");} while(0)
 #else
 	#define DBG_OUT(...) do {} while(0)
 #endif
@@ -54,10 +54,6 @@ typedef struct PACK_ALIGN(1) mifi_alive {
   u32 cellid;
   u32 used_bytes; // Mega bytes
 }MIFI_ALIVE;
-
-struct receive_param {
-	int sd;
-};
 
 struct msg_packet {
     int sd;

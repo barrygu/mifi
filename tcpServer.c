@@ -94,6 +94,23 @@ int main(int UNUSED(argc), char *argv[])
 	return 0;
 }
 
+struct receive_param {
+	int sd;
+};
+
+int is_client_response(int func)
+{
+	switch (func) {
+	case 0x3000:
+	case 0x3100:
+	case 0x3200:
+	case 0x7100:
+	case 0x7f00:
+		return 1;
+	}
+	return 0;
+}
+
 void* receive_thread(void *arg)
 {
 	struct receive_param rcv_para = *((struct receive_param *)arg);
@@ -116,14 +133,16 @@ void* receive_thread(void *arg)
         if (((u8*)packet)[len - 1] != sum)
             DBG_OUT("*** check sum fail");
 
-        handle_packet(rcv_para.sd, packet);
-		len = server_build_response(packet, resp);
-		DBG_OUT("build response len is %d", len);
-		if (len > 0) {
-            DBG_OUT("enqueue packet to queue");
-            push_data(rcv_para.sd, (u8*)resp, len);
-		}
-        handle_packet_post(rcv_para.sd, packet);
+        if (is_client_response(packet->func) == 0) {
+			handle_packet(rcv_para.sd, packet);
+			len = server_build_response(packet, resp);
+			DBG_OUT("build response len is %d", len);
+			if (len > 0) {
+				DBG_OUT("enqueue packet to queue");
+				push_data(rcv_para.sd, (u8*)resp, len);
+			}
+			handle_packet_post(rcv_para.sd, packet);
+        }
 
 		memset(packet, 0x0, buff_len);
 	} /* while(read_packet) */
