@@ -219,3 +219,42 @@ void* send_thread(void *arg)
 	return NULL;
 }
 
+u8 hex2byte(u8 hex_ch) {
+	if (hex_ch >= '0' && hex_ch <= '9') {
+		return hex_ch - '0';
+	}
+
+	hex_ch |= 0x20;
+
+	if (hex_ch >= 'a' && hex_ch <= 'f') {
+		return hex_ch - 'a' + 10;
+	}
+
+	return 0x00;
+}
+
+u8 hex2bin(u8 * p_hexstr, u8 * p_binstr, int len)
+{
+    uint bin_len = 0;
+    uint hex_len = strlen((char *)p_hexstr);
+    uint index = 0;
+
+    if (hex_len % 2 == 1)
+    {
+        hex_len -= 1;
+    }
+
+    bin_len = hex_len / 2;
+    if (bin_len > len) {
+    	bin_len = len;
+    	hex_len = len * 2;
+    }
+
+    for(index = 0; index < hex_len; index+=2)
+    {
+        p_binstr[index/2] = ((hex2byte(p_hexstr[index]) << 4) & 0xF0) + hex2byte(p_hexstr[index + 1]);
+    }
+
+    return bin_len;
+}
+

@@ -78,6 +78,7 @@ u8   get_checksum(u8 *pdata, int datalen);
 int  get_packet_len(PMIFI_PACKET packet);
 int  make_argv(char *s, int argvsz, char *argv[]);
 u32  get_packet_sn(void);
+u8   hex2bin(u8 * p_hexstr, u8 * p_binstr, int len);
 
 void push_data(int sd, u8 *data, int len);
 void* send_thread(void *arg);

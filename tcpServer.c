@@ -22,11 +22,13 @@
 #include "queue.h"
 #include "linenoise.h"
 
+typedef u8 MAC_ADDR[6];
 struct dev_map{
-    int sd;
-    int valid;
+    int  sd;
+    int  valid;
     char devid[11+1];
     char imsi[15+1];
+    MAC_ADDR users[10];
 }dev_map[10];
 
 struct listen_param{
@@ -252,6 +254,11 @@ int handle_packet(int sd, PMIFI_PACKET packet)
         n = find_dev_map(sd, packet);
         dev_map[n].valid = 0;
         break;
+
+    case MIFI_USR_CHECK:
+    	n = find_dev_map(sd, packet);
+    	memcpy(dev_map[n].users[0], packet->data, sizeof(MAC_ADDR));
+    	break;
     }
     return 0;
 }
@@ -368,6 +375,16 @@ int get_cmdid(char *cmd)
     return ERROR;
 }
 
+int build_packet_header(PMIFI_PACKET packet, struct dev_map *pdev, int func)
+{
+	packet->func = func;
+	packet->sn_packet = __builtin_bswap32(get_packet_sn());
+    memcpy(packet->id_device, pdev->devid, sizeof(packet->id_device));
+    memcpy(packet->imsi, pdev->imsi, sizeof(packet->imsi));
+    memset(packet->reserved, 0, sizeof(packet->reserved));
+    return 0;
+}
+
 int cmd_handle(int UNUSED(sd), char *line)
 {
     int argc, func;
@@ -394,27 +411,19 @@ int cmd_handle(int UNUSED(sd), char *line)
         int i, datalen, packetlen;
         u8 sum;
 
+        i = 0;
         datalen = 0;
         packetlen =  sizeof(MIFI_PACKET ) + datalen;
 
-        for (i = 0; i < ARRAY_SIZE(dev_map); i++)
-        {
-            if (dev_map[i].valid == 1) {
-                p = (PMIFI_PACKET)malloc(packetlen + 1);
+		p = (PMIFI_PACKET)malloc(packetlen + 1);
 
-                p->func = func;
-                p->sn_packet = __builtin_bswap32(get_packet_sn());
-                memcpy(p->id_device, dev_map[i].devid, sizeof(p->id_device));
-                memcpy(p->imsi, dev_map[i].imsi, sizeof(p->imsi));
-                memset(p->reserved, 0, sizeof(p->reserved));
-                p->datalen = __builtin_bswap16(datalen);
-                //memcpy(p->data, url, datalen);
-                sum = get_checksum((u8 *)p, packetlen);
-                *(((u8 *)p) + packetlen) = sum;
+		build_packet_header(p, &dev_map[i], func);
+		p->datalen = __builtin_bswap16(datalen);
+		sum = get_checksum((u8 *)p, packetlen);
+		*(((u8 *)p) + packetlen) = sum;
 
-                push_data(dev_map[i].sd, (u8 *)p, packetlen + 1);
-            }
-        }
+		push_data(dev_map[i].sd, (u8 *)p, packetlen + 1);
+
         free(p);
     }
 	break;
@@ -426,27 +435,44 @@ int cmd_handle(int UNUSED(sd), char *line)
 		int i, datalen, packetlen;
 		u8 sum;
 
+		i = 0;
 		datalen = strlen(url);
 		packetlen =  sizeof(MIFI_PACKET ) + datalen;
 
-		for (i = 0; i < ARRAY_SIZE(dev_map); i++)
-		{
-			if (dev_map[i].valid == 1) {
-				p = (PMIFI_PACKET)malloc(packetlen + 1);
+		p = (PMIFI_PACKET)malloc(packetlen + 1);
 
-				p->func = func;
-				p->sn_packet = __builtin_bswap32(get_packet_sn());
-				memcpy(p->id_device, dev_map[i].devid, sizeof(p->id_device));
-				memcpy(p->imsi, dev_map[i].imsi, sizeof(p->imsi));
-				memset(p->reserved, 0, sizeof(p->reserved));
-				p->datalen = __builtin_bswap16(datalen);
-				memcpy(p->data, url, datalen);
-				sum = get_checksum((u8 *)p, packetlen);
-				*(((u8 *)p) + packetlen) = sum;
+		build_packet_header(p, &dev_map[i], func);
+		p->datalen = __builtin_bswap16(datalen);
+		memcpy(p->data, url, datalen);
+		sum = get_checksum((u8 *)p, packetlen);
+		*(((u8 *)p) + packetlen) = sum;
 
-				push_data(dev_map[i].sd, (u8 *)p, packetlen + 1);
-			}
-		}
+		push_data(dev_map[i].sd, (u8 *)p, packetlen + 1);
+
+		free(p);
+	}
+	break;
+
+	case SERV_REQ_KICKUSR:
+	{
+		PMIFI_PACKET p;
+		int i, datalen, packetlen;
+		u8 sum;
+
+		i = 0;
+		datalen = sizeof(MAC_ADDR);
+		packetlen =  sizeof(MIFI_PACKET ) + datalen;
+
+		p = (PMIFI_PACKET)malloc(packetlen + 1);
+
+        build_packet_header(p, &dev_map[i], func);
+		p->datalen = __builtin_bswap16(datalen);
+		memcpy(p->data, dev_map[i].users[0], datalen);
+		sum = get_checksum((u8 *)p, packetlen);
+		*(((u8 *)p) + packetlen) = sum;
+
+		push_data(dev_map[i].sd, (u8 *)p, packetlen + 1);
+
 		free(p);
 	}
 	break;

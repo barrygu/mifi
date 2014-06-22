@@ -13,6 +13,7 @@
 
 int establish_connection(char *server, int port);
 int build_packet(PMIFI_PACKET packet, int func);
+int build_packet_ex(PMIFI_PACKET packet, int func, int argc, char *argv[]);
 int build_response(PMIFI_PACKET packet, PMIFI_PACKET resp);
 
 int get_cmdid(char *cmd);
@@ -23,6 +24,6 @@ int get_device_imsi(u8 *pImsi);
 int get_device_version(u8 *pVer);
 int get_client_mac(u8 *pMac);
 int get_user_mac(u8 *pMac);
-//u32 get_packet_sn(void);
+int get_cell_id(void);
 
 #endif // __MIFI_CLI_H__

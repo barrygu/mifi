@@ -197,7 +197,10 @@ int cmd_handle(int sd, char *cmd)
 	case MIFI_CLI_LOGOUT:
     case MIFI_USR_CHECK:
 		memset(buff, 0, buff_size);
-		len = build_packet((PMIFI_PACKET)buff, func);
+		if (argc == 1)
+			len = build_packet((PMIFI_PACKET)buff, func);
+		else
+			len = build_packet_ex((PMIFI_PACKET)buff, func, argc, argv);
 		break;
 
     case MIFI_CMD_HELP:
@@ -218,29 +221,8 @@ int cmd_handle(int sd, char *cmd)
     if (func != MIFI_CMD_READ) {
     	DBG_OUT("push packet:");
     	push_data(sd, buff, len);
-    	/*
-        DBG_OUT("send request packet:");
-        dump_packet((PMIFI_PACKET)buff);
-        rc = send(sd, buff, len, 0);
-
-        if (rc < 0) {
-            perror("cannot send data ");
-            close(sd);
-            free(buff);
-            return ERROR;
-        }
-        */
     }
-    /*
-	DBG_OUT("waiting for server response");
-	rc = read_packet(sd, (PMIFI_PACKET)buff);
-	if (rc != ERROR) {
-		len = get_packet_len((PMIFI_PACKET)buff);
-		sum = get_checksum(buff, len - 1);
-		//printf("len = %d, recv sum = 0x%02x, calc sum = 0x%02x\n", len, buff[len - 1], sum);
-		dump_packet((PMIFI_PACKET) buff);
-		if (sum != buff[len - 1]) printf("+++++ warning: response checksum is wrong\r\n");
-	}*/
+
 	DBG_OUT("handle command \"%s\" end", argv[0]);
 	free(buff);
 	return 0;
@@ -264,6 +246,7 @@ int client_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
 
 	case SERV_SET_PERMIT:
 	case SERV_REQ_KICKCLI:
+	case SERV_REQ_KICKUSR:
 	case SERV_REQ_REBOOT:
 	case SERV_REQ_FACTORY:
 		resp->func = 0x7f00;
@@ -282,23 +265,28 @@ int client_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
 	return packetlen + 1;
 }
 
-int build_packet(PMIFI_PACKET packet, int func)
+int build_packet_header(PMIFI_PACKET packet, int func)
 {
-	int datalen = 0, packetlen = 0;
-	u8 sum;
-	u32 sn_packet;
-
-	packet->func = func; //__builtin_bswap16(func);
-	sn_packet = get_packet_sn();
-	packet->sn_packet = __builtin_bswap32(sn_packet);
+	packet->func = func;
+	packet->sn_packet = __builtin_bswap32(get_packet_sn());
 	get_device_id(packet->id_device);
 	get_device_imsi(packet->imsi);
 	memset(packet->reserved, 0, sizeof(packet->reserved));
 
+	return 0;
+}
+
+int build_packet(PMIFI_PACKET packet, int func)
+{
+	int datalen = 0, packetlen = 0;
+	u8 sum;
+
+	build_packet_header(packet, func);
+
 	switch (func) {
 	case MIFI_CLI_LOGIN:
 		datalen = 4;
-		packet->datalen = 0x0400;//__builtin_bswap16(datalen);
+		packet->datalen = __builtin_bswap16(datalen);
 		get_device_version(packet->data);
 		break;
         
@@ -312,7 +300,7 @@ int build_packet(PMIFI_PACKET packet, int func)
 		alive.battery = 80;
 		alive.login_users = 0;
 		alive.auth_users = 0;
-		alive.cellid = __builtin_bswap32(0x11223344);
+		alive.cellid = __builtin_bswap32(get_cell_id());
 		alive.used_bytes = __builtin_bswap32(1234);
 		memcpy(packet->data, &alive, datalen);
 		break;
@@ -331,6 +319,52 @@ int build_packet(PMIFI_PACKET packet, int func)
 	default:
 		return -1;
 	}
+	packetlen =  sizeof(MIFI_PACKET ) + datalen;
+	sum = get_checksum((u8 *)packet, packetlen);
+	*(((u8 *)packet) + packetlen) = sum;
+	return packetlen + 1;
+}
+
+int build_packet_ex(PMIFI_PACKET packet, int func, int argc, char *argv[])
+{
+	int datalen = 0, packetlen = 0;
+	u8 sum;
+
+	build_packet_header(packet, func);
+
+	switch (func) {
+//	case MIFI_CLI_LOGIN:
+//		datalen = 4;
+//		packet->datalen = __builtin_bswap16(datalen);
+//		get_device_version(packet->data);
+//		break;
+//
+//	case MIFI_CLI_ALIVE:
+//	{
+//		MIFI_ALIVE alive;
+//		datalen = sizeof(MIFI_ALIVE);
+//		packet->datalen = __builtin_bswap16(datalen);
+//		alive.worktime = __builtin_bswap32(3600);
+//		alive.rssi = 78;
+//		alive.battery = 80;
+//		alive.login_users = 0;
+//		alive.auth_users = 0;
+//		alive.cellid = __builtin_bswap32(0x11223344);
+//		alive.used_bytes = __builtin_bswap32(1234);
+//		memcpy(packet->data, &alive, datalen);
+//		break;
+//	}
+//
+    case MIFI_USR_CHECK:
+		datalen = 6;
+		hex2bin((u8 *)argv[1], packet->data, datalen);
+		packet->datalen = __builtin_bswap16(datalen);
+        break;
+
+	default:
+		return -1;
+	}
+
 	packetlen =  sizeof(MIFI_PACKET ) + datalen;
 	sum = get_checksum((u8 *)packet, packetlen);
 	*(((u8 *)packet) + packetlen) = sum;
@@ -386,6 +420,11 @@ int get_device_version(u8 *pVer)
 	const char myver[4] = {0x00,0x01,0x00,0x01};
 	memcpy(pVer, myver, sizeof(myver));
 	return 0;
+}
+
+int get_cell_id(void)
+{
+	return 0x11223344;
 }
 
 int establish_connection(char *server, int port)
