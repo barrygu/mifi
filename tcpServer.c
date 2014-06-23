@@ -22,14 +22,13 @@
 #include "queue.h"
 #include "linenoise.h"
 
-typedef u8 MAC_ADDR[6];
 struct dev_map{
     int  sd;
     int  valid;
-    char devid[11+1];
-    char imsi[15+1];
-    MAC_ADDR users[10];
-}dev_map[10];
+    devid_t devid;
+    imsi_t imsi;
+    macadr_t users[20];
+}dev_map[15];
 
 struct listen_param{
 	int port;
@@ -221,17 +220,24 @@ int find_free_map(void)
     return -1;
 }
 
-int find_dev_map(int sd, PMIFI_PACKET packet)
+int find_device(int sd, PMIFI_PACKET packet)
 {
     int i;
     for (i = 0; i < ARRAY_SIZE(dev_map); i++)
     {
         if (dev_map[i].valid == 1 && dev_map[i].sd == sd) {
-            if (memcmp(dev_map[i].devid, packet->id_device, sizeof(packet->id_device)) == 0)
+            if (memcmp(dev_map[i].devid, packet->id_device, sizeof(devid_t)) == 0 &&
+            		memcmp(dev_map[i].imsi, packet->imsi, sizeof(imsi_t)) == 0)
                 return i;
         }
     }
     return -1;
+}
+
+void copy_devinfo(struct dev_map *pdev, PMIFI_PACKET packet)
+{
+    memcpy(pdev->devid, packet->id_device, sizeof(devid_t));
+    memcpy(pdev->imsi, packet->imsi, sizeof(imsi_t));
 }
 
 int handle_packet(int sd, PMIFI_PACKET packet)
@@ -244,20 +250,17 @@ int handle_packet(int sd, PMIFI_PACKET packet)
         n = find_free_map();
         dev_map[n].sd = sd;
         dev_map[n].valid = 1;
-        memcpy(dev_map[n].devid, packet->id_device, sizeof(packet->id_device));
-        dev_map[n].devid[sizeof(packet->id_device)] = 0;
-        memcpy(dev_map[n].imsi, packet->imsi, sizeof(packet->imsi));
-        dev_map[n].imsi[sizeof(packet->imsi)] = 0;
+        copy_devinfo(&dev_map[n], packet);
         break;
         
     case MIFI_CLI_LOGOUT:
-        n = find_dev_map(sd, packet);
+        n = find_device(sd, packet);
         dev_map[n].valid = 0;
         break;
 
     case MIFI_USR_CHECK:
-    	n = find_dev_map(sd, packet);
-    	memcpy(dev_map[n].users[0], packet->data, sizeof(MAC_ADDR));
+    	n = find_device(sd, packet);
+    	memcpy(dev_map[n].users[0], packet->data, sizeof(macadr_t));
     	break;
     }
     return 0;
@@ -279,22 +282,23 @@ int handle_packet_post(int sd, PMIFI_PACKET packet)
                 u32 time;
             } allow;
 
-            //n = find_dev_map(sd, packet);
+            //n = find_device(sd, packet);
 
-            datalen = 6 + 4 + 2;
+            datalen = sizeof(macadr_t) + sizeof(allow);
             packetlen =  sizeof(MIFI_PACKET ) + datalen;
             p = (PMIFI_PACKET)malloc(packetlen + 1);
-            
+
+            memcpy(p, packet, sizeof(MIFI_PACKET));
+
             p->func = SERV_SET_PERMIT;
             p->sn_packet = __builtin_bswap32(get_packet_sn());
-            memcpy(p->id_device, packet->id_device, sizeof(p->id_device));
-            memcpy(p->imsi, packet->imsi, sizeof(p->imsi));
-            memset(p->reserved, 0, sizeof(p->reserved));
             p->datalen = __builtin_bswap16(datalen);
-            memcpy(p->data, packet->data, 6);
+            memcpy(p->data, packet->data, sizeof(macadr_t));
+
             allow.bytes = __builtin_bswap16(50); // 50M
             allow.time = __builtin_bswap16(3600); // 1 hours
-            memcpy(p->data + 6, &allow, 6);
+            memcpy(p->data + sizeof(macadr_t), &allow, sizeof(allow));
+
             sum = get_checksum((u8 *)p, packetlen);
             *(((u8 *)p) + packetlen) = sum;
             push_data(sd, (u8 *)p, packetlen + 1);
@@ -460,7 +464,7 @@ int cmd_handle(int UNUSED(sd), char *line)
 		u8 sum;
 
 		i = 0;
-		datalen = sizeof(MAC_ADDR);
+		datalen = sizeof(macadr_t);
 		packetlen =  sizeof(MIFI_PACKET ) + datalen;
 
 		p = (PMIFI_PACKET)malloc(packetlen + 1);

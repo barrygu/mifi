@@ -30,15 +30,20 @@
 #define SUCCESS 0
 #define ERROR   -1
 
-typedef unsigned char u8;
+typedef unsigned char  u8;
 typedef unsigned short u16;
-typedef unsigned int u32;
+typedef unsigned int   u32;
+typedef unsigned long  ul;
+
+typedef u8 macadr_t[6];
+typedef u8 devid_t[11];
+typedef u8 imsi_t[15];
 
 typedef struct PACK_ALIGN(1) mifi_packet {
 	u16 func;
 	u32 sn_packet;
-	u8 id_device[11];
-	u8 imsi[15];
+	devid_t id_device;
+	imsi_t imsi;
 	u8 reserved[6];
 	u16 datalen;
 	u8 data[0];
