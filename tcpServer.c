@@ -436,18 +436,21 @@ int cmd_handle(int UNUSED(sd), char *line)
 	{
 		PMIFI_PACKET p;
 		char *url = "http://url.cn/QyCLQu";
-		int i, datalen, packetlen;
+		int i, url_len, datalen, packetlen;
 		u8 sum;
 
 		i = 0;
-		datalen = strlen(url);
+		url_len = strlen(url);
+		datalen = url_len + 2;
 		packetlen =  sizeof(MIFI_PACKET ) + datalen;
 
 		p = (PMIFI_PACKET)malloc(packetlen + 1);
 
 		build_packet_header(p, &dev_map[i], func);
 		p->datalen = __builtin_bswap16(datalen);
-		memcpy(p->data, url, datalen);
+		p->data[0] = ((u8*)&url_len)[1];
+		p->data[1] = ((u8*)&url_len)[0];
+		memcpy(p->data + 2, url, datalen);
 		sum = get_checksum((u8 *)p, packetlen);
 		*(((u8 *)p) + packetlen) = sum;
 
