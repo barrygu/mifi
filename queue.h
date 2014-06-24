@@ -1,7 +1,8 @@
-        typedef void * ElementType;
 /* START: fig3_57.txt */
         #ifndef _Queue_h
         #define _Queue_h
+
+        typedef void * ElementType;
 
         struct QueueRecord;
         typedef struct QueueRecord *Queue;
