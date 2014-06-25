@@ -85,6 +85,7 @@ int  make_argv(char *s, int argvsz, char *argv[]);
 u32  get_packet_sn(void);
 u8   hex2bin(u8 * p_hexstr, u8 * p_binstr, int len);
 int  set_device_info(devid_t *pdevid, imsi_t *pimsi);
+void dump_device_info(void);
 
 void push_data(int sd, u8 *data, int len);
 void* send_thread(void *arg);
@@ -96,6 +97,7 @@ void* send_thread(void *arg);
 #define MIFI_SET_DEVID    0x9900
 #define MIFI_SET_IMSI     0x9901
 #define MIFI_SET_DEVINFO  0x9902
+#define MIFI_GET_DEVINFO  0x9903
 
 // use big-endian to define function id
 #define MIFI_CLI_LOGIN    0x0100

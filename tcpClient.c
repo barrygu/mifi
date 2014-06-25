@@ -159,6 +159,7 @@ static struct {
     {MIFI_SET_DEVID,   "devid"},
     {MIFI_SET_IMSI,    "imsi"},
     {MIFI_SET_DEVINFO, "setinfo"},
+    {MIFI_GET_DEVINFO, "devinfo"},
 };
 
 int get_cmdid(char *cmd)
@@ -227,6 +228,10 @@ int cmd_handle(int sd, char *cmd)
         set_device_info((devid_t*)argv[1], (imsi_t*)argv[2]);
         break;
 
+    case MIFI_GET_DEVINFO:
+        dump_device_info();
+        break;
+        
 	default:
 		printf("func isn't impletement: %d\r\n", func);
 		return ERROR;
@@ -415,6 +420,21 @@ int set_device_info(devid_t *pdevid, imsi_t *pimsi)
         memcpy(g_imsi, pimsi, sizeof(imsi_t));
     }
     return 0;
+}
+
+void dump_device_info(void)
+{
+    int i;
+
+    printf("DevID: ");
+    for (i = 0; i < sizeof(devid_t); i++)
+    {
+    }
+
+    printf("IMSI: ");
+    for (i = 0; i < sizeof(imsi_t); i++)
+    {
+    }
 }
 
 int get_device_id(u8 *pDevId)
