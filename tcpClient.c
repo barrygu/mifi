@@ -18,10 +18,6 @@
 #include "tcpClient.h"
 #include "linenoise.h"
 
-//#define USED_DEV  199
-#define USED_DEV  189
-//#define USED_DEV  188
-
 struct receive_param {
 	int sd;
 };
@@ -38,6 +34,9 @@ int main(int UNUSED(argc), char *argv[])
 	struct send_param send_para;
 	struct receive_param rcv_para;
 
+    //set_device_info((devid_t *)"19912345678", (imsi_t *)"1234567891abcde");
+    set_device_info((devid_t *)"18912345678", (imsi_t *)"0123456789abcde");
+    //set_device_info((devid_t *)"18812345678", (imsi_t *)"1234567890abcde");
 	sd = establish_connection(SERVER_ADDR, SERVER_PORT);
 	if (sd < 0) {
 		return ERROR;
@@ -157,6 +156,9 @@ static struct {
 //    {MIFI_USR_GRANT,   "grant"},
     {MIFI_CMD_READ,    "read"},
     {MIFI_CMD_HELP,    "help"},
+    {MIFI_SET_DEVID,   "devid"},
+    {MIFI_SET_IMSI,    "imsi"},
+    {MIFI_SET_DEVINFO, "setinfo"},
 };
 
 int get_cmdid(char *cmd)
@@ -211,6 +213,18 @@ int cmd_handle(int sd, char *cmd)
         return 0;
 
     case MIFI_CMD_READ:
+        break;
+
+    case MIFI_SET_DEVID:
+        set_device_info((devid_t*)argv[1], NULL);
+        break;
+
+    case MIFI_SET_IMSI:
+        set_device_info(NULL, (imsi_t*)argv[1]);
+        break;
+
+    case MIFI_SET_DEVINFO:
+        set_device_info((devid_t*)argv[1], (imsi_t*)argv[2]);
         break;
 
 	default:
@@ -373,8 +387,8 @@ int build_packet_ex(PMIFI_PACKET packet, int func, int argc, char *argv[])
 
 int get_client_mac(u8 *pMac)
 {
-    u8  mac[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
-    int len = sizeof(mac);
+    macadr_t mac = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+    const int len = sizeof(mac);
     
     memcpy(pMac, mac, len);
     return len;
@@ -382,36 +396,36 @@ int get_client_mac(u8 *pMac)
 
 int get_user_mac(u8 *pMac)
 {
-    u8  mac[6] = {0x22, 0x33, 0x44, 0x55, 0x66, 0x77};
-    int len = sizeof(mac);
+    macadr_t mac = {0x22, 0x33, 0x44, 0x55, 0x66, 0x77};
+    const int len = sizeof(mac);
 
     memcpy(pMac, mac, len);
     return len;
 }
 
+devid_t g_devid;
+imsi_t  g_imsi;
+int set_device_info(devid_t *pdevid, imsi_t *pimsi)
+{
+    if (pdevid) {
+        memcpy(g_devid, pdevid, sizeof(devid_t));
+    }
+    
+    if (pimsi) {
+        memcpy(g_imsi, pimsi, sizeof(imsi_t));
+    }
+    return 0;
+}
+
 int get_device_id(u8 *pDevId)
 {
-#if USED_DEV == 199
-	const char *myid = "19912345678";
-#elif USED_DEV == 189
-	const char *myid = "18912345678";
-#elif USED_DEV == 188
-	const char *myid = "18812345678";
-#endif
-	memcpy(pDevId, myid, strlen(myid));
+	memcpy(pDevId, &g_devid, sizeof(devid_t));
 	return 0;
 }
 
 int get_device_imsi(u8 *pImsi)
 {
-#if USED_DEV == 199
-	const char *myimsi = "1234567891abcde";
-#elif USED_DEV == 189
-	const char *myimsi = "0123456789abcde";
-#elif USED_DEV == 188
-	const char *myimsi = "1234567890abcde";
-#endif
-	memcpy(pImsi, myimsi, strlen(myimsi));
+	memcpy(pImsi, g_imsi, sizeof(imsi_t));
 	return 0;
 }
 

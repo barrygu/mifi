@@ -15,7 +15,7 @@ void dump_data(u8 *pdata, int datalen, int line_width) {
 	int i;
 
 	if (line_width != 16 && line_width != 8 && line_width != 32)
-		line_width = 8;
+		line_width = 16;
 
 	for (i = 0; i < datalen; i++) {
 		if (i) {
