@@ -106,7 +106,7 @@ void* receive_thread(void *arg)
 		DBG_OUT("Waiting for packet arriving");
 		if (read_packet(rcv_para.sd, packet) == ERROR) {
 			printf("read packet error\r\n");
-			continue;
+			break;
 		}
 		DBG_OUT("Process received packet");
 
@@ -133,7 +133,7 @@ void* receive_thread(void *arg)
 		memset(packet, 0x0, buff_len);
 	} /* while(read_packet) */
 
-	DBG_OUT("terminated thread 0x%lx", pthread_self());
+	DBG_OUT("terminated thread 0x%lx", (unsigned long)pthread_self());
 	free(packet);
 	free(resp);
 

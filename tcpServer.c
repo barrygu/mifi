@@ -151,7 +151,7 @@ void* receive_thread(void *arg)
 		memset(packet, 0x0, buff_len);
 	} /* while(read_packet) */
 
-	DBG_OUT("terminated thread 0x%lx", pthread_self());
+	DBG_OUT("terminated thread 0x%lx", (unsigned long)pthread_self());
 	free(packet);
 	free(resp);
 	pthread_exit((void *)0);
