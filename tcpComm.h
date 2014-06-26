@@ -92,7 +92,7 @@ void* send_thread(void *arg);
 
 #define MIFI_CMD_HELP     0x8888
 #define MIFI_CMD_READ     0x8889
-#define MIFI_CMD_SERV     0x8899
+#define MIFI_CMD_CONNECT  0x8899
 
 #define MIFI_SET_DEVID    0x9900
 #define MIFI_SET_IMSI     0x9901

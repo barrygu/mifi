@@ -18,27 +18,35 @@
 #include "tcpClient.h"
 #include "linenoise.h"
 
+int g_sd = 0;
+pthread_mutex_t mtx_socket = PTHREAD_MUTEX_INITIALIZER;
+
 struct receive_param {
-	int sd;
+	//int *sd;
+	//pthread_mutex_t *mtx_socket;
 };
 
 void* receive_thread(void *arg);
 int client_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp);
 
+static char svr_addr[128] = SERVER_ADDR;
+static int  svr_port = SERVER_PORT;
+static devid_t g_devid = "18912345678";
+static imsi_t  g_imsi = "0123456789abcde";
 int main(int UNUSED(argc), char *argv[]) 
 {
-	int sd;
+	int rc;
 	char *line;
-	 const int num_threads = 2;
+	const int num_threads = 2;
 	pthread_t tid[num_threads];
 	struct send_param send_para;
 	struct receive_param rcv_para;
 
     //set_device_info((devid_t *)"19912345678", (imsi_t *)"1234567891abcde");
-    set_device_info((devid_t *)"18912345678", (imsi_t *)"0123456789abcde");
+    //set_device_info((devid_t *)"18912345678", (imsi_t *)"0123456789abcde");
     //set_device_info((devid_t *)"18812345678", (imsi_t *)"1234567890abcde");
-	sd = establish_connection(SERVER_ADDR, SERVER_PORT);
-	if (sd < 0) {
+	rc = establish_connection(svr_addr, svr_port);
+	if (rc < 0) {
 		return ERROR;
 	}
 
@@ -50,7 +58,8 @@ int main(int UNUSED(argc), char *argv[])
 	send_para.sem_msg = &sem_msg;
     pthread_create(&tid[1], NULL, send_thread, &send_para);
 
-    rcv_para.sd = sd;
+    //rcv_para.sd = &g_sd;
+	//rcv_para.mtx_socket = &mtx_socket;
     pthread_create(&tid[0], NULL, receive_thread, &rcv_para);
 
     linenoiseHistoryLoad("hist-cli.txt"); /* Load the history at startup */
@@ -58,7 +67,7 @@ int main(int UNUSED(argc), char *argv[])
         /* Do something with the string. */
         if (line[0] != '\0' && line[0] != '/') {
             //printf("echo: '%s'\n", line);
-            cmd_handle(sd, line);
+            cmd_handle(g_sd, line);
             linenoiseHistoryAdd(line); /* Add to the history. */
             linenoiseHistorySave("hist-cli.txt"); /* Save the history on disk. */
         } else if (!strncmp(line,"/q",2)) {
@@ -76,7 +85,7 @@ int main(int UNUSED(argc), char *argv[])
         free(line);
     }
 
-	close(sd);
+	close(g_sd);
 	return 0;
 }
 
@@ -91,7 +100,7 @@ int is_server_response(int func)
 
 void* receive_thread(void *arg)
 {
-	struct receive_param rcv_para = *((struct receive_param *)arg);
+	//struct receive_param rcv_para = *((struct receive_param *)arg);
 	PMIFI_PACKET packet, resp;
 	u8 sum;
 	int len;
@@ -103,7 +112,7 @@ void* receive_thread(void *arg)
 
 	while (1) {
 		DBG_OUT("Waiting for packet arriving");
-		if (read_packet(rcv_para.sd, packet) == ERROR) {
+		if (read_packet(get_connection(), packet) == ERROR) {
 			printf("read packet error\r\n");
 			break;
 		}
@@ -122,7 +131,7 @@ void* receive_thread(void *arg)
 			DBG_OUT("build response len is %d", len);
 			if (len > 0) {
 				DBG_OUT("enqueue packet to queue");
-				push_data(rcv_para.sd, (u8*)resp, len);
+				push_data(get_connection(), (u8*)resp, len);
 			}
 			//handle_packet_post(rcv_para.sd, packet);
         } else {
@@ -156,6 +165,7 @@ static struct {
 //    {MIFI_USR_GRANT,   "grant"},
     {MIFI_CMD_READ,    "read"},
     {MIFI_CMD_HELP,    "help"},
+    {MIFI_CMD_CONNECT, "connect"},
     {MIFI_SET_DEVID,   "devid"},
     {MIFI_SET_IMSI,    "imsi"},
     {MIFI_SET_DEVINFO, "setinfo"},
@@ -231,7 +241,13 @@ int cmd_handle(int sd, char *cmd)
     case MIFI_GET_DEVINFO:
         dump_device_info();
         break;
-        
+
+	case MIFI_CMD_CONNECT:
+		strcpy(svr_addr, argv[1]);
+		svr_port = atoi(argv[2]);
+		establish_connection(svr_addr, svr_port);
+		break;
+
 	default:
 		printf("func isn't impletement: %d\r\n", func);
 		return ERROR;
@@ -239,7 +255,7 @@ int cmd_handle(int sd, char *cmd)
 
     if (func != MIFI_CMD_READ) {
     	DBG_OUT("push packet:");
-    	push_data(sd, buff, len);
+    	push_data(get_connection(), buff, len);
     }
 
 	DBG_OUT("handle command \"%s\" end", argv[0]);
@@ -408,8 +424,6 @@ int get_user_mac(u8 *pMac)
     return len;
 }
 
-devid_t g_devid;
-imsi_t  g_imsi;
 int set_device_info(devid_t *pdevid, imsi_t *pimsi)
 {
     if (pdevid) {
@@ -461,6 +475,11 @@ int get_cell_id(void)
 	return 0x11223344;
 }
 
+int get_connection(void)
+{
+	return g_sd;
+}
+
 int establish_connection(char *server, int port)
 {
 	int sd, rc;
@@ -503,5 +522,11 @@ int establish_connection(char *server, int port)
 		perror("cannot connect ");
 		return ERROR;
 	}
+
+	//pthread_mutex_lock(&mtx_socket);
+	if (g_sd > 0)
+		close(g_sd);
+	g_sd = sd;
+	//pthread_mutex_unlock(&mtx_socket);
 	return sd;
 }
