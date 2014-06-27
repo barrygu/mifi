@@ -18,7 +18,7 @@
 #include "tcpClient.h"
 #include "linenoise.h"
 
-int g_sd = 0;
+static int volatile g_sd = 0;
 pthread_mutex_t mtx_socket = PTHREAD_MUTEX_INITIALIZER;
 
 struct receive_param {
@@ -71,9 +71,9 @@ int main(int UNUSED(argc), char *argv[])
         /* Do something with the string. */
         if (line[0] != '\0' && line[0] != '/') {
             //printf("echo: '%s'\n", line);
-            cmd_handle(g_sd, line);
             linenoiseHistoryAdd(line); /* Add to the history. */
             linenoiseHistorySave("hist-cli.txt"); /* Save the history on disk. */
+            cmd_handle(g_sd, line);
         } else if (!strncmp(line,"/q",2)) {
         	free(line);
         	break;
@@ -107,7 +107,7 @@ void* receive_thread(void *arg)
 	//struct receive_param rcv_para = *((struct receive_param *)arg);
 	PMIFI_PACKET packet, resp;
 	u8 sum;
-	int len;
+	int len, sd;
 	const int buff_len = 1024;
 
 	packet = (PMIFI_PACKET)malloc(buff_len);
@@ -116,9 +116,10 @@ void* receive_thread(void *arg)
 
 	while (1) {
 		DBG_OUT("Waiting for packet arriving");
-		if (read_packet(get_connection(), packet) == ERROR) {
+        sd = get_connection();
+		if (read_packet(sd, packet) == ERROR) {
 			printf("read packet error\r\n");
-            //sleep(5);
+            sleep(1);
             establish_connection(svr_addr, svr_port);
 			continue;
 		}
@@ -473,6 +474,7 @@ void close_connection(void)
     mrevent_reset(&mrevent);
     if (g_sd);
         close(g_sd);
+    g_sd = 0;
 }
 
 int establish_connection(char *server, int port)

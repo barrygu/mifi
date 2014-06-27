@@ -72,9 +72,9 @@ int main(int UNUSED(argc), char *argv[])
         /* Do something with the string. */
         if (line[0] != '\0' && line[0] != '/') {
             //printf("echo: '%s'\n", line);
-            cmd_handle(0, line);
             linenoiseHistoryAdd(line); /* Add to the history. */
             linenoiseHistorySave("hist-srv.txt"); /* Save the history on disk. */
+            cmd_handle(0, line);
         } else if (!strncmp(line,"/q",2)) {
         	free(line);
         	break;
@@ -190,7 +190,7 @@ void* listen_thread(void *arg)
 
 	while (1) {
 
-		DBG_OUT("waiting for data on TCP port %u", lis_para->port);
+		DBG_OUT("waiting connection on TCP port %u", lis_para->port);
 
 		cliLen = sizeof(cliAddr);
 		newSd = accept(sd, (struct sockaddr *) &cliAddr, &cliLen);
