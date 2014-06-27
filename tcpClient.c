@@ -114,7 +114,8 @@ void* receive_thread(void *arg)
 		DBG_OUT("Waiting for packet arriving");
 		if (read_packet(get_connection(), packet) == ERROR) {
 			printf("read packet error\r\n");
-			break;
+            sleep(5);
+			continue;
 		}
 		DBG_OUT("Process received packet");
 
@@ -253,7 +254,7 @@ int cmd_handle(int sd, char *cmd)
 		return ERROR;
 	}
 
-    if (func != MIFI_CMD_READ) {
+    if ((func & 0x00ff) != 0x0088 && (func & 0x00ff) != 0x0099) {
     	DBG_OUT("push packet:");
     	push_data(get_connection(), buff, len);
     }

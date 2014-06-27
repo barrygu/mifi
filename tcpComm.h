@@ -91,13 +91,13 @@ void push_data(int sd, u8 *data, int len);
 void* send_thread(void *arg);
 
 #define MIFI_CMD_HELP     0x8888
-#define MIFI_CMD_READ     0x8889
-#define MIFI_CMD_CONNECT  0x8899
+#define MIFI_CMD_READ     0x8988
+#define MIFI_CMD_CONNECT  0x9088
 
-#define MIFI_SET_DEVID    0x9900
-#define MIFI_SET_IMSI     0x9901
-#define MIFI_SET_DEVINFO  0x9902
-#define MIFI_GET_DEVINFO  0x9903
+#define MIFI_SET_DEVID    0x0099
+#define MIFI_SET_IMSI     0x0199
+#define MIFI_SET_DEVINFO  0x0299
+#define MIFI_GET_DEVINFO  0x0399
 
 // use big-endian to define function id
 #define MIFI_CLI_LOGIN    0x0100
