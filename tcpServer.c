@@ -303,7 +303,7 @@ int handle_packet(int sd, PMIFI_PACKET packet)
 {
     int n;
     dev_info_t *pdev;
-    u16 func = packet->func; // __builtin_bswap16(packet->func);
+    u16 func = packet->func;
     
     switch (func) {
     case MIFI_CLI_LOGIN:
@@ -333,7 +333,7 @@ int handle_packet(int sd, PMIFI_PACKET packet)
 int handle_packet_post(int sd, PMIFI_PACKET packet)
 {
     int /*n,*/ datalen, packetlen;
-    u16 func = packet->func; // __builtin_bswap16(packet->func);
+    u16 func = packet->func;
     PMIFI_PACKET p;
     u8 sum;
     
@@ -355,12 +355,12 @@ int handle_packet_post(int sd, PMIFI_PACKET packet)
             memcpy(p, packet, sizeof(MIFI_PACKET));
 
             p->func = SERV_SET_PERMIT;
-            p->sn_packet = htonl(get_packet_sn());//__builtin_bswap32(get_packet_sn());
-            p->datalen = htons(datalen);//__builtin_bswap16(datalen);
+            p->sn_packet = htonl(get_packet_sn());
+            p->datalen = htons(datalen);
             memcpy(p->data, packet->data, sizeof(macadr_t));
 
-            allow.bytes = htons(50);//__builtin_bswap16(50); // 50M
-            allow.time = htons(3600);//__builtin_bswap16(3600); // 1 hours
+            allow.bytes = htons(50); // 50M
+            allow.time = htons(3600); // 1 hours
             memcpy(p->data + sizeof(macadr_t), &allow, sizeof(allow));
 
             sum = get_checksum((u8 *)p, packetlen);
@@ -376,7 +376,7 @@ int server_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
 {
 	int datalen = 0, packetlen = 0;
 	u8 sum;
-	u16 func = packet->func; // __builtin_bswap16(packet->func);
+	u16 func = packet->func;
 
 	memcpy(resp, packet, sizeof(*packet));
 	resp->func = 0x8001;  // little-endian: 0x0180
@@ -386,7 +386,7 @@ int server_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
 	case MIFI_CLI_ALIVE:
 	case MIFI_CLI_LOGOUT:
 		datalen = 100;
-		resp->datalen = htons(datalen);//__builtin_bswap16(datalen); //0x0200; // little-endian: 0x0002
+		resp->datalen = htons(datalen);
 		memset(resp->data, 0xcc, datalen);
 		resp->data[0] = (u8)(func);
 		resp->data[1] = (u8)(func >> 8);
@@ -400,7 +400,7 @@ int server_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
         {
             char *purl = "http://news.baidu.com";
             datalen = strlen(purl);
-            resp->datalen = htons(datalen);//__builtin_bswap16(datalen);
+            resp->datalen = htons(datalen);
             strcpy((char *)resp->data, purl);
         }
         break;
@@ -447,7 +447,7 @@ int get_cmdid(char *cmd)
 int build_packet_header(PMIFI_PACKET packet, dev_info_t *pdev, int func)
 {
 	packet->func = func;
-	packet->sn_packet = htonl(get_packet_sn());//__builtin_bswap32(get_packet_sn());
+	packet->sn_packet = htonl(get_packet_sn());
     memcpy(packet->id_device, pdev->devid, sizeof(packet->id_device));
     memcpy(packet->imsi, pdev->imsi, sizeof(packet->imsi));
     memset(packet->reserved, 0, sizeof(packet->reserved));
@@ -489,7 +489,7 @@ int cmd_handle(int UNUSED(sd), char *line)
 
 		pdev = get_device(i);
 		build_packet_header(p, pdev, func);
-		p->datalen = htons(datalen);//__builtin_bswap16(datalen);
+		p->datalen = htons(datalen);
 		sum = get_checksum((u8 *)p, packetlen);
 		*(((u8 *)p) + packetlen) = sum;
 
@@ -515,7 +515,7 @@ int cmd_handle(int UNUSED(sd), char *line)
 
 		pdev = get_device(i);
 		build_packet_header(p, pdev, func);
-		p->datalen = htons(datalen);//__builtin_bswap16(datalen);
+		p->datalen = htons(datalen);
 		p->data[0] = ((u8*)&url_len)[1];
 		p->data[1] = ((u8*)&url_len)[0];
 		memcpy(p->data + 2, url, datalen);
@@ -542,7 +542,7 @@ int cmd_handle(int UNUSED(sd), char *line)
 
 		pdev = get_device(i);
         build_packet_header(p, pdev, func);
-		p->datalen = htons(datalen);//__builtin_bswap16(datalen);
+		p->datalen = htons(datalen);
         if (argc == 1) {
             i = find_first_valid_user(pdev);
         } else {

@@ -276,7 +276,7 @@ int client_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
 	case SERV_REQ_UPGRADE:
 		resp->func &= 0xff00;
 		datalen = 1;
-		resp->datalen = htons(datalen); //__builtin_bswap16(datalen);
+		resp->datalen = htons(datalen);
 		resp->data[0] = 0x00;
 		break;
 
@@ -287,7 +287,7 @@ int client_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
 	case SERV_REQ_FACTORY:
 		resp->func = 0x7f00;
 		datalen = 1;
-		resp->datalen = htons(datalen);//__builtin_bswap16(datalen);
+		resp->datalen = htons(datalen);
 		resp->data[0] = 0x00;
 		break;
 
@@ -304,7 +304,7 @@ int client_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
 int build_packet_header(PMIFI_PACKET packet, int func)
 {
 	packet->func = func;
-	packet->sn_packet = htonl(get_packet_sn());//__builtin_bswap32(get_packet_sn());
+	packet->sn_packet = htonl(get_packet_sn());
 	get_device_id(packet->id_device);
 	get_device_imsi(packet->imsi);
 	memset(packet->reserved, 0, sizeof(packet->reserved));
@@ -322,7 +322,7 @@ int build_packet(PMIFI_PACKET packet, int func)
 	switch (func) {
 	case MIFI_CLI_LOGIN:
 		datalen = 4;
-		packet->datalen = htons(datalen);//__builtin_bswap16(datalen);
+		packet->datalen = htons(datalen);
 		get_device_version(packet->data);
 		break;
         
@@ -330,26 +330,26 @@ int build_packet(PMIFI_PACKET packet, int func)
 	{
 		MIFI_ALIVE alive;
 		datalen = sizeof(MIFI_ALIVE);
-		packet->datalen = htons(datalen);//__builtin_bswap16(datalen);
-		alive.worktime = htonl(3600);//__builtin_bswap32(3600);
+		packet->datalen = htons(datalen);
+		alive.worktime = htonl(3600);
 		alive.rssi = 78;
 		alive.battery = 80;
 		alive.login_users = 0;
 		alive.auth_users = 0;
-		alive.cellid = htonl(get_cell_id());//__builtin_bswap32(get_cell_id());
-		alive.used_bytes = htonl(1234);//__builtin_bswap32(1234);
+		alive.cellid = htonl(get_cell_id());
+		alive.used_bytes = htonl(1234);
 		memcpy(packet->data, &alive, datalen);
 		break;
 	}
 
 	case MIFI_CLI_LOGOUT:
 		datalen = 0;
-		packet->datalen = htons(datalen);//__builtin_bswap16(datalen);
+		packet->datalen = htons(datalen);
 		break;
 
     case MIFI_USR_CHECK:
 		datalen = get_user_mac(packet->data);
-		packet->datalen = htons(datalen);//__builtin_bswap16(datalen);
+		packet->datalen = htons(datalen);
         break;
 
 	default:
@@ -369,32 +369,10 @@ int build_packet_ex(PMIFI_PACKET packet, int func, int argc, char *argv[])
 	build_packet_header(packet, func);
 
 	switch (func) {
-//	case MIFI_CLI_LOGIN:
-//		datalen = 4;
-//		packet->datalen = __builtin_bswap16(datalen);
-//		get_device_version(packet->data);
-//		break;
-//
-//	case MIFI_CLI_ALIVE:
-//	{
-//		MIFI_ALIVE alive;
-//		datalen = sizeof(MIFI_ALIVE);
-//		packet->datalen = __builtin_bswap16(datalen);
-//		alive.worktime = __builtin_bswap32(3600);
-//		alive.rssi = 78;
-//		alive.battery = 80;
-//		alive.login_users = 0;
-//		alive.auth_users = 0;
-//		alive.cellid = __builtin_bswap32(0x11223344);
-//		alive.used_bytes = __builtin_bswap32(1234);
-//		memcpy(packet->data, &alive, datalen);
-//		break;
-//	}
-//
     case MIFI_USR_CHECK:
 		datalen = 6;
 		hex2bin((u8 *)argv[1], packet->data, datalen);
-		packet->datalen = htons(datalen);//__builtin_bswap16(datalen);
+		packet->datalen = htons(datalen);
         break;
 
 	default:

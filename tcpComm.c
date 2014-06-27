@@ -30,7 +30,7 @@ void dump_data(u8 *pdata, int datalen, int line_width) {
 }
 
 void dump_packet(PMIFI_PACKET packet) {
-	int len = ntohs(packet->datalen);//__builtin_bswap16(packet->datalen);
+	int len = ntohs(packet->datalen);
 	dump_data((u8 *) packet, sizeof(*packet) + len + 1, 16);
 }
 
@@ -46,7 +46,7 @@ u8 get_checksum(u8 *pdata, int datalen) {
 int get_packet_len(PMIFI_PACKET packet)
 {
 	u16 datalen = packet->datalen;
-	datalen = ntohs(datalen);//__builtin_bswap16(datalen);
+	datalen = ntohs(datalen);
 	datalen +=  sizeof(MIFI_PACKET) + 1;
 	return datalen;
 }
