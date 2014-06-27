@@ -115,8 +115,8 @@ void* receive_thread(void *arg)
 	memset(packet, 0x0, buff_len);
 
 	while (1) {
-		DBG_OUT("Waiting for packet arriving");
         sd = get_connection();
+		DBG_OUT("Waiting for packet arriving");
 		if (read_packet(sd, packet) == ERROR) {
 			printf("read packet error\r\n");
             sleep(1);
@@ -250,7 +250,9 @@ int cmd_handle(int sd, char *cmd)
         break;
 
 	case MIFI_CMD_CONNECT:
-		strcpy(svr_addr, argv[1]);
+        if (argc >= 2)
+            strcpy(svr_addr, argv[1]);
+        if (argc >= 3)
 		svr_port = atoi(argv[2]);
         if (mrevent_istriggered(&mrevent))
             close_connection();
@@ -526,7 +528,7 @@ int establish_connection(char *server, int port)
 		close(g_sd);
 	g_sd = sd;
 	//pthread_mutex_unlock(&mtx_socket);
-End:
     mrevent_trigger(&mrevent);
+End:
 	return sd;
 }
