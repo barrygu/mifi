@@ -283,3 +283,11 @@ void mrevent_wait(struct mrevent *ev) {
          pthread_cond_wait(&ev->cond, &ev->mutex);
      pthread_mutex_unlock(&ev->mutex);
 }
+
+bool mrevent_istriggered(struct mrevent *ev) {
+    bool triggered;
+    pthread_mutex_lock(&ev->mutex);
+    triggered = ev->triggered;
+    pthread_mutex_unlock(&ev->mutex);
+    return triggered;
+}

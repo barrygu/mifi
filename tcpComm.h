@@ -97,6 +97,12 @@ void dump_device_info(void);
 void push_data(int sd, u8 *data, int len);
 void* send_thread(void *arg);
 
+void mrevent_init(struct mrevent *ev);
+void mrevent_trigger(struct mrevent *ev);
+void mrevent_reset(struct mrevent *ev);
+void mrevent_wait(struct mrevent *ev);
+bool mrevent_istriggered(struct mrevent *ev);
+
 #define MIFI_CMD_HELP     0x8888
 #define MIFI_CMD_READ     0x8988
 #define MIFI_CMD_CONNECT  0x8a88

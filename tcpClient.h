@@ -26,5 +26,6 @@ int get_client_mac(u8 *pMac);
 int get_user_mac(u8 *pMac);
 int get_cell_id(void);
 int get_connection(void);
+void close_connection(void);
 
 #endif // __MIFI_CLI_H__

@@ -33,9 +33,11 @@ static char svr_addr[128] = SERVER_ADDR;
 static int  svr_port = SERVER_PORT;
 static devid_t g_devid = "18912345678";
 static imsi_t  g_imsi = "0123456789abcde";
+struct mrevent mrevent;
+
 int main(int UNUSED(argc), char *argv[]) 
 {
-	int rc;
+	//int rc;
 	char *line;
 	const int num_threads = 2;
 	pthread_t tid[num_threads];
@@ -45,11 +47,13 @@ int main(int UNUSED(argc), char *argv[])
     //set_device_info((devid_t *)"19912345678", (imsi_t *)"1234567891abcde");
     //set_device_info((devid_t *)"18912345678", (imsi_t *)"0123456789abcde");
     //set_device_info((devid_t *)"18812345678", (imsi_t *)"1234567890abcde");
-	rc = establish_connection(svr_addr, svr_port);
-	if (rc < 0) {
-		return ERROR;
-	}
+	//rc = establish_connection(svr_addr, svr_port);
+	//if (rc < 0) {
+	//	return ERROR;
+	//}
 
+    mrevent_init(&mrevent);
+    
     que_msg = CreateQueue(100);
     sem_init(&sem_msg, 0, 0);
 
@@ -114,7 +118,8 @@ void* receive_thread(void *arg)
 		DBG_OUT("Waiting for packet arriving");
 		if (read_packet(get_connection(), packet) == ERROR) {
 			printf("read packet error\r\n");
-            sleep(5);
+            //sleep(5);
+            establish_connection(svr_addr, svr_port);
 			continue;
 		}
 		DBG_OUT("Process received packet");
@@ -246,7 +251,10 @@ int cmd_handle(int sd, char *cmd)
 	case MIFI_CMD_CONNECT:
 		strcpy(svr_addr, argv[1]);
 		svr_port = atoi(argv[2]);
-		establish_connection(svr_addr, svr_port);
+        if (mrevent_istriggered(&mrevent))
+            close_connection();
+        else
+            establish_connection(svr_addr, svr_port);
 		break;
 
 	default:
@@ -456,19 +464,28 @@ int get_cell_id(void)
 
 int get_connection(void)
 {
+    mrevent_wait(&mrevent);
 	return g_sd;
+}
+
+void close_connection(void)
+{
+    mrevent_reset(&mrevent);
+    if (g_sd);
+        close(g_sd);
 }
 
 int establish_connection(char *server, int port)
 {
-	int sd, rc;
+	int sd = -1, rc;
 	struct sockaddr_in localAddr, servAddr;
 	struct hostent *h;
 
+    mrevent_reset(&mrevent);
 	h = gethostbyname(server);
 	if (h == NULL) {
 		printf("unknown host '%s'\r\n", server);
-		return ERROR;
+		goto End;
 	}
 
 	servAddr.sin_family = h->h_addrtype;
@@ -479,7 +496,7 @@ int establish_connection(char *server, int port)
 	sd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sd < 0) {
 		perror("cannot open socket ");
-		return ERROR;
+		goto End;
 	}
 
 	/* bind any port number */
@@ -491,7 +508,7 @@ int establish_connection(char *server, int port)
 	if (rc < 0) {
 		DBG_OUT("cannot bind port TCP %u", port);
 		perror("error ");
-		return ERROR;
+		goto End;
 	}
 
 	DBG_OUT("connecting to server: %s", server);
@@ -499,7 +516,7 @@ int establish_connection(char *server, int port)
 	rc = connect(sd, (struct sockaddr *) &servAddr, sizeof(servAddr));
 	if (rc < 0) {
 		perror("cannot connect ");
-		return ERROR;
+		goto End;
 	}
 
 	//pthread_mutex_lock(&mtx_socket);
@@ -507,5 +524,7 @@ int establish_connection(char *server, int port)
 		close(g_sd);
 	g_sd = sd;
 	//pthread_mutex_unlock(&mtx_socket);
+End:
+    mrevent_trigger(&mrevent);
 	return sd;
 }
