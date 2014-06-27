@@ -245,6 +245,54 @@ int find_device(/*int sd,*/ PMIFI_PACKET packet)
     return -1;
 }
 
+int find_free_user(dev_info_t *pdev)
+{
+    int i;
+    macadr_t freeuser = {0};
+    for (i = 0; i < ARRAY_SIZE(pdev->users); i++)
+    {
+        if (memcmp(pdev->users[i], &freeuser, sizeof(macadr_t)) == 0)
+            return i;
+    }
+    return -1;
+}
+
+int find_user(dev_info_t *pdev, macadr_t *user)
+{
+    int i;
+    for (i = 0; i < ARRAY_SIZE(pdev->users); i++)
+    {
+        if (memcmp(&pdev->users[i], user, sizeof(macadr_t)) == 0)
+            return i;
+    }
+    return -1;
+}
+
+void clean_user(macadr_t *user)
+{
+    memset(user, 0, sizeof(macadr_t));
+}
+
+int remove_user(dev_info_t *pdev, macadr_t *user)
+{
+    int i;
+    i = find_user(pdev, user);
+    clean_user(&pdev->users[i]);
+    return 0;
+}
+
+int find_first_valid_user(dev_info_t *pdev)
+{
+    int i;
+    macadr_t freeuser = {0};
+    for (i = 0; i < ARRAY_SIZE(pdev->users); i++)
+    {
+        if (memcmp(&pdev->users[i], &freeuser, sizeof(macadr_t)) != 0)
+            return i;
+    }
+    return -1;
+}
+
 void copy_devinfo(dev_info_t *pdev, PMIFI_PACKET packet)
 {
     memcpy(pdev->devid, packet->id_device, sizeof(devid_t));
@@ -275,7 +323,8 @@ int handle_packet(int sd, PMIFI_PACKET packet)
     case MIFI_USR_CHECK:
     	n = find_device(/*sd,*/ packet);
     	pdev = get_device(n);
-    	memcpy(pdev->users[0], packet->data, sizeof(macadr_t));
+        n = find_free_user(pdev);
+    	memcpy(pdev->users[n], packet->data, sizeof(macadr_t));
     	break;
     }
     return 0;
@@ -380,6 +429,7 @@ static struct {
     {SERV_SET_PARAMS,  "setpara"},
     {SERV_SET_TRUSTS,  "setrust"},
     {SERV_REQ_UPGRADE, "upgrade"},
+    {MIFI_CMD_LUSER,   "luser"},
 };
 
 int get_cmdid(char *cmd)
@@ -493,7 +543,15 @@ int cmd_handle(int UNUSED(sd), char *line)
 		pdev = get_device(i);
         build_packet_header(p, pdev, func);
 		p->datalen = htons(datalen);//__builtin_bswap16(datalen);
-		memcpy(p->data, pdev->users[0], datalen);
+        if (argc == 1) {
+            i = find_first_valid_user(pdev);
+        } else {
+            macadr_t user;
+            hex2bin((u8 *)argv[1], (u8 *)&user, sizeof(macadr_t));
+            i = find_user(pdev, &user);
+        }
+		memcpy(p->data, pdev->users[i], datalen);
+        clean_user(&pdev->users[i]);  // should be clean after got the response from client
 		sum = get_checksum((u8 *)p, packetlen);
 		*(((u8 *)p) + packetlen) = sum;
 
@@ -502,6 +560,21 @@ int cmd_handle(int UNUSED(sd), char *line)
 		free(p);
 	}
 	break;
+    
+    case MIFI_CMD_LUSER:
+    {
+        int i = 0;
+        macadr_t freeuser = {0};
+        pdev = get_device(i);
+        for (i = 0; i < ARRAY_SIZE(pdev->users); i++)
+        {
+            if (memcmp(&pdev->users[i], &freeuser, sizeof(macadr_t)) != 0)
+            {
+                dump_data((u8 *)&pdev->users[i], sizeof(macadr_t), 0);
+            }
+        }
+    }
+    break;
 
 	default:
 		DBG_OUT("func isn't impletement: %d", func);
