@@ -3,6 +3,7 @@
 
 #include <pthread.h>
 #include <semaphore.h>
+#include <stdbool.h>
 #include "queue.h"
 
 //#define SERVER_PORT 6588
@@ -70,6 +71,12 @@ struct send_param {
 	Queue que_msg;
 	pthread_mutex_t *mutex_msg;
 	sem_t *sem_msg;
+};
+
+struct mrevent {
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+    bool triggered;
 };
 
 extern Queue que_msg;
