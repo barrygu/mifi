@@ -430,6 +430,7 @@ static struct {
     {SERV_SET_TRUSTS,  "setrust"},
     {SERV_REQ_UPGRADE, "upgrade"},
     {MIFI_CMD_LUSER,   "luser"},
+    {MIFI_CMD_LDEV,    "ldev"},
 };
 
 int get_cmdid(char *cmd)
@@ -561,6 +562,24 @@ int cmd_handle(int UNUSED(sd), char *line)
 	}
 	break;
     
+    case MIFI_CMD_LDEV:
+	{
+		int i = 0;
+		devid_t freedev = {0};
+		for (i = 0; i < ARRAY_SIZE(dev_map); i++)
+		{
+			if (memcmp(&dev_map[i].devid, &freedev, sizeof(devid_t)) != 0)
+			{
+				printf("DevID: ");
+				dump_data((u8 *)&dev_map[i].devid, sizeof(devid_t), 0);
+				printf("IMSI:  ");
+				dump_data((u8 *)&dev_map[i].imsi, sizeof(imsi_t), 0);
+				printf("\r\n");
+			}
+		}
+	}
+	break;
+	
     case MIFI_CMD_LUSER:
     {
         int i = 0;
