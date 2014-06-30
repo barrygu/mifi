@@ -21,7 +21,7 @@ else
 LIB_EXT := .so
 endif
 
-LIB_MIFI := lib$(LIB_NAME)
+LIB_MIFI := lib$(LIB_NAME)$(LIB_EXT)
 TARGET_SVR := svr$(EXE_EXT)
 TARGET_CLI := cli$(EXE_EXT)
 
@@ -47,7 +47,7 @@ test:
 	@echo CLI-SRCS: $(CLI-SRCS) 
 	@echo COMMON-SRCS: $(COMMON-SRCS)
 	@echo OSTYPE: \"$(OST)\"
-	@echo LIB: $(LIB_MIFI)$(LIB_EXT)
+	@echo LIB: $(LIB_MIFI)
 
 	@echo
 
@@ -56,7 +56,7 @@ test:
 	@echo COMMON-OBJS: $(COMMON-OBJS)
 
 $(LIB_MIFI): $(LIB-OBJS)
-	$(CC) -shared -Wl,-soname,$@$(LIB_EXT) -o $@$(LIB_EXT) $(LIB-OBJS)
+	$(CC) -shared -Wl,-soname,$@ -o $@ $(LIB-OBJS)
 
 $(TARGET_CLI): $(CLI-OBJS) $(COMMON-OBJS)
 	$(CC) $(LDFLAGS) -o $@ $^ -l$(LIB_NAME)
