@@ -419,14 +419,14 @@ static struct {
     {SERV_REQ_PARAMS,  "param"},
     {SERV_REQ_STATES,  "status"},
     {SERV_REQ_TRUSTS,  "trust"},
-    {SERV_REQ_KICKCLI, "kill"},
-    {SERV_REQ_KICKUSR, "kick"},
-    {SERV_REQ_REBOOT,  "reboot"},
-    {SERV_REQ_FACTORY, "reset"},
+    {SERV_REQ_KICKCLI, "kill"},    // kill [devid]
+    {SERV_REQ_KICKUSR, "kick"},    // kick [macadr] [devid]
+    {SERV_REQ_REBOOT,  "reboot"},  // reboot [devid]
+    {SERV_REQ_FACTORY, "reset"},   // reset [devid]
     {SERV_SET_PARAMS,  "setpara"},
     {SERV_SET_TRUSTS,  "setrust"},
     {SERV_REQ_UPGRADE, "upgrade"},
-    {MIFI_CMD_LUSER,   "luser"},
+    {MIFI_CMD_LUSER,   "luser"},   // lusr [devid]
     {MIFI_CMD_LDEV,    "ldev"},
 };
 
@@ -485,6 +485,16 @@ int cmd_handle(int UNUSED(sd), char *line)
 
 		p = (PMIFI_PACKET)malloc(packetlen + 1);
 
+        if (argc == 2) {
+            devid_t devid;
+            hex2bin((u8 *)argv[1], (u8 *)&devid, sizeof(devid_t));
+            i = find_device_by_id(&devid);
+            if (i < 0) {
+                printf("cannot find device: %s\r\n", argv[1]);
+                break;
+            }
+        }
+
 		pdev = get_device(i);
 		build_packet_header(p, pdev, func);
 		p->datalen = htons(datalen);
@@ -538,6 +548,16 @@ int cmd_handle(int UNUSED(sd), char *line)
 
 		p = (PMIFI_PACKET)malloc(packetlen + 1);
 
+        if (argc == 3) {
+            devid_t devid;
+            hex2bin((u8 *)argv[2], (u8 *)&devid, sizeof(devid_t));
+            i = find_device_by_id(&devid);
+            if (i < 0) {
+                printf("cannot find device: %s\r\n", argv[2]);
+                break;
+            }
+        }
+
 		pdev = get_device(i);
         build_packet_header(p, pdev, func);
 		p->datalen = htons(datalen);
@@ -547,6 +567,10 @@ int cmd_handle(int UNUSED(sd), char *line)
             macadr_t user;
             hex2bin((u8 *)argv[1], (u8 *)&user, sizeof(macadr_t));
             i = find_user(pdev, &user);
+            if (i < 0) {
+                printf("cannot find user: %s\r\n", argv[1]);
+                break;
+            }
         }
 		memcpy(p->data, pdev->users[i], datalen);
         clean_user(&pdev->users[i]);  // should be clean after got the response from client
@@ -581,6 +605,17 @@ int cmd_handle(int UNUSED(sd), char *line)
     {
         int i = 0;
         macadr_t freeuser = {0};
+        
+        if (argc == 2) {
+            devid_t devid;
+            hex2bin((u8 *)argv[1], (u8 *)&devid, sizeof(devid_t));
+            i = find_device_by_id(&devid);
+            if (i < 0) {
+                printf("cannot find device: %s\r\n", argv[1]);
+                break;
+            }
+        }
+        
         pdev = get_device(i);
         for (i = 0; i < ARRAY_SIZE(pdev->users); i++)
         {
