@@ -102,6 +102,38 @@ int is_server_response(int func)
 	return 0;
 }
 
+int handle_server_response(PMIFI_PACKET packet)
+{
+    u16 func;
+
+    DBG_OUT("Process server response.\r\n");
+    
+    if (packet->datalen >= 2) {
+        memcpy(&func, packet->data, 2);
+    } else {
+        return -1;
+    }
+    
+    switch (func) {
+    case MIFI_USR_CHECK:
+    {
+        int url_len = 0;
+        char *url;
+        
+        memcpy(&url_len, packet->data + 3, 2);
+        url_len = ntohs(url_len);
+        url = strndup((char *)(packet->data + 5), url_len);
+        printf(">>> url(%d): %s\r\n", url_len, url);
+        free(url);
+    }
+    break;
+    
+    default:
+        return 0;
+    }
+    return -1;
+}
+
 void* receive_thread(void *arg)
 {
 	//struct receive_param rcv_para = *((struct receive_param *)arg);
@@ -142,7 +174,9 @@ void* receive_thread(void *arg)
 			}
 			//handle_packet_post(rcv_para.sd, packet);
         } else {
-        	DBG_OUT("It's a response from server, ignored.");
+            if (handle_server_response(packet) < 0) {
+                DBG_OUT("It's a response from server, ignored.");
+            }
         }
 
 		memset(packet, 0x0, buff_len);
