@@ -396,9 +396,15 @@ int server_build_response(PMIFI_PACKET packet, PMIFI_PACKET resp)
 	case MIFI_USR_CHECK:
         {
             char *purl = "http://news.baidu.com";
-            datalen = strlen(purl);
+            int url_len = strlen(purl);
+            datalen = url_len + 5;
             resp->datalen = htons(datalen);
-            strcpy((char *)resp->data, purl);
+            resp->data[0] = 0x00;
+            resp->data[1] = 0x07;
+            resp->data[2] = 0x00;
+            resp->data[3] = (u8)(url_len >> 8);
+            resp->data[4] = (u8)(url_len);
+            strcpy((char *)resp->data + 5, purl);
         }
         break;
 
