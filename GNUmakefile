@@ -30,13 +30,14 @@ CC := gcc
 all: $(LIB_MIFI) $(TARGET_SVR) $(TARGET_CLI)
 
 ifeq ($(strip $(LOC_TEST)),true)
-CFLAGS += -DLOCAL_TEST
+CFLAGS_CLI += -DLOCAL_TEST
 endif
 
 CFLAGS += -DDEBUG
 CFLAGS += -Wall -g
+
 ifeq ($(OST),linux-gnu)
-CFLAGS += -fPIC
+CFLAGS_LIB += -fPIC
 endif
 
 LDFLAGS = -g -L. -pthread
@@ -65,10 +66,14 @@ $(TARGET_SVR): $(SVR-OBJS) $(COMMON-OBJS)
 	$(CC) $(LDFLAGS) -o $@ $^ -l$(LIB_NAME)
 
 $(CLI-OBJS): %.o: %.c $(filter %.h,$(CLI-SRCS) $(COMMON-SRCS))
+	$(CC) $(CFLAGS) $(CFLAGS_CLI) -c -o $@ $<
+
 $(SVR-OBJS): %.o: %.c $(filter %.h,$(SVR-SRCS) $(COMMON-SRCS))
 $(COMM-OBJS): %.o: %.c $(filter %.h,$(COMMON-SRCS))
-$(LIB-OBJS): %.o: %.c $(filter %.h,$(LIB-SRCS))
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(LIB-OBJS): %.o: %.c $(filter %.h,$(LIB-SRCS))
+	$(CC) $(CFLAGS) $(CFLAGS_LIB) -c -o $@ $<
 
 .PHONY: clean
 clean:
