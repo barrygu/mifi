@@ -228,7 +228,7 @@ int find_free_device(void)
     return -1;
 }
 
-int find_device(/*int sd,*/ PMIFI_PACKET packet)
+int find_device_by_id(devid_t *pdevid)
 {
     int i;
     dev_info_t *pdev;
@@ -236,9 +236,8 @@ int find_device(/*int sd,*/ PMIFI_PACKET packet)
     for (i = 0; i < ARRAY_SIZE(dev_map); i++)
     {
     	pdev = get_device(i);
-        if (pdev->valid == 1 /*&& pdev->sd == sd*/) {
-            if (memcmp(pdev->devid, packet->id_device, sizeof(devid_t)) == 0 &&
-            		memcmp(pdev->imsi, packet->imsi, sizeof(imsi_t)) == 0)
+        if (pdev->valid == 1) {
+            if (memcmp(pdev->devid, pdevid, sizeof(devid_t)) == 0)
                 return i;
         }
     }
@@ -315,13 +314,13 @@ int handle_packet(int sd, PMIFI_PACKET packet)
         break;
         
     case MIFI_CLI_LOGOUT:
-        n = find_device(/*sd,*/ packet);
+        n = find_device_by_id(&packet->id_device);
         pdev = get_device(n);
         pdev->valid = 0;
         break;
 
     case MIFI_USR_CHECK:
-    	n = find_device(/*sd,*/ packet);
+    	n = find_device_by_id(&packet->id_device);
     	pdev = get_device(n);
         n = find_free_user(pdev);
     	memcpy(pdev->users[n], packet->data, sizeof(macadr_t));
@@ -345,8 +344,6 @@ int handle_packet_post(int sd, PMIFI_PACKET packet)
                 u16 bytes;
                 u32 time;
             } allow;
-
-            //n = find_device(/*sd,*/ packet);
 
             datalen = sizeof(macadr_t) + sizeof(allow);
             packetlen =  sizeof(MIFI_PACKET ) + datalen;
