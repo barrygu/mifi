@@ -595,7 +595,7 @@ int cmd_handle(int UNUSED(sd), char *line)
 		devid_t freedev = {0};
 		for (i = 0; i < ARRAY_SIZE(dev_map); i++)
 		{
-			if (memcmp(&dev_map[i].devid, &freedev, sizeof(devid_t)) != 0)
+			if (dev_map[i].valid && (memcmp(&dev_map[i].devid, &freedev, sizeof(devid_t)) != 0))
 			{
 				printf("DevID: ");
 				dump_data((u8 *)&dev_map[i].devid, sizeof(devid_t), 0);
