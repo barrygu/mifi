@@ -152,6 +152,16 @@ void* receive_thread(void *arg)
 	} /* while(read_packet) */
 
 	DBG_OUT("terminated thread 0x%lx", (unsigned long)pthread_self());
+
+    for (len = 0; len < ARRAY_SIZE(dev_map); len++)
+    {
+        if (dev_map[len].sd == rcv_para.sd)
+        {
+            dev_map[len].valid = 0;
+            break;
+        }
+    }
+    
 	free(packet);
 	free(resp);
 	pthread_exit((void *)0);
